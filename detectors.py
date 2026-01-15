@@ -31,7 +31,7 @@ def detect_question_type(q):
 
     # Checkboxes (non-matrix)
     if q.query_selector("div[role='checkbox']"):
-        return "checkboxes"
+        return "multiple_choice"
 
     # Paragraph
     if q.query_selector("textarea"):

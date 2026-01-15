@@ -1,5 +1,5 @@
-def fill_date(q):
+def fill_date(q, answer):
     date_input = q.query_selector("input[type='date']")
     if date_input:
         date_input.click()
-        date_input.fill("2023-06-15")  
+        date_input.fill(answer)

@@ -8,7 +8,7 @@ def extract_title(q):
 
 def extract_radio(q):
     return {
-        "type": "multiple_choice",
+        "type": "linear_scale_radio",
         "question": extract_title(q),
         "options": list(dict.fromkeys(
             r.get_attribute("data-value").strip()
@@ -46,46 +46,6 @@ def extract_text(q, qtype):
         "options": []
     }
     
-def extract_matrix_radio(q):
-    """
-    Extracts Google Forms Multiple Choice Grid
-    Columns = data-value from radios
-    Rows = row headers (questions)
-    """
-
-    title_el = (
-        q.query_selector("div[role='heading']")
-        or q.query_selector("div.freebirdFormviewerComponentsQuestionBaseTitle")
-    )
-    question = title_el.inner_text().strip() if title_el else ""
-
-    # Rows (sub-questions)
-    rows = []
-    for row in q.query_selector_all("div[role='rowheader']"):
-        text = row.inner_text().strip()
-        if text:
-            rows.append(text)
-
-    # Columns (options) → from radio data-value
-    columns = []
-
-    # Use first row's radios as column source
-    first_row = q.query_selector("div[role='radiogroup']")
-    if first_row:
-        for radio in first_row.query_selector_all("div[role='radio']"):
-            value = radio.get_attribute("data-value")
-            if value:
-                columns.append(value.strip())
-
-    # Deduplicate (safety)
-    columns = list(dict.fromkeys(columns))
-
-    return {
-        "type": "matrix_radio",
-        "question": question,
-        "rows": rows,
-        "columns": columns,
-    }
     
 def extract_radio_question(q):
     """
@@ -106,34 +66,72 @@ def extract_radio_question(q):
             options.append(value.strip())
 
     return {
-        "type": "multiple_choice",
+        "type": "linear_scale_radio",
         "question": question,
         "options": options,
     }
     
-def extract_matrix_checkbox(q):
-    qfiltered = q.query_selector_all(
-        ":not([aria-hidden='true'])"
-    )
+def extract_matrix_radio(q):
+    questionRow = []
+
+    # Row labels
+    rows = [
+        r.inner_text().strip()
+        for r in q.query_selector_all("div[class='V4d7Ke wzWPxe OIC90c']")
+    ]
+
+    # Column labels (from first radiogroup)
+    columns = []
+    first_row_group = q.query_selector("div[role='radiogroup']")
+    if first_row_group:
+        for radio in first_row_group.query_selector_all("div[role='radio']"):
+            val = radio.get_attribute("data-value")
+            if val:
+                columns.append(val.strip())
+
+    # Build questions per row (same format as checkbox matrix)
+    for row in rows:
+        question = {
+            "type": "radio",
+            "question": row,
+            "options": [columns]
+        }
+        questionRow.append(question)
+
+    return {
+        "type": "matrix_radio",
+        "questionTitle": extract_title(q),
+        "options": questionRow
+    }
     
+def extract_matrix_checkbox(q):
+    questionRow = []
 
     rows = [
         r.inner_text().strip()
         for r in q.query_selector_all("div[class='V4d7Ke wzWPxe OIC90c']")
-        if not r.get_attribute("aria-hidden") 
     ]
 
-    columns = []
     first_row = q.query_selector("div[role='group']")
     if first_row:
-        for box in first_row.query_selector_all("div[role='checkbox']"):
+        columns = []
+        for i, box in enumerate(first_row.query_selector_all("div[role='checkbox']")):
             val = box.get_attribute("data-answer-value")
             if val:
                 columns.append(val.strip())
+        
+        
+    for row in rows:
+        question = {
+                "type": "checkboxes",
+                "question": row,
+                "options": [columns]
+            }
+        questionRow.append(question)
+
 
     return {
         "type": "matrix_checkbox",
-        "question": extract_title(q),
-        "rows": rows,
-        "columns": list(dict.fromkeys(columns))
+        "questionTitle": extract_title(q),
+        "options": questionRow
     }

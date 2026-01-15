@@ -3,25 +3,29 @@ from extract import extract_options
 from fillers import text, choice, dropdown, matrix, date, time
 from navigation import next_or_submit
 import random
+from gemini import GeminiFormFiller
+
 FILLERS = {
     "short_text": text.fill_short_text,
     "paragraph": text.fill_paragraph,
-    "multiple_choice": choice.fill_multiple_choice,
+    "linear_scale_radio": choice.fill_linear_scale_radio,
     "checkboxes": choice.fill_checkboxes,
     "dropdown": dropdown.fill_dropdown,
-    "matrix_radio": matrix.fill_matrix,
+    "matrix_radio": matrix.fill_matrix_radio,
+    'multiple_choice': choice.fill_checkboxes,
     "date": date.fill_date,
     "time": time.fill_time,
     'matrix_checkbox': matrix.fill_matrix_checkbox,
 }
 
-def fill_form(page):
-    extracted = []
-    seen = set()
+def fill_form(page, chat_filler: GeminiFormFiller):
     qid = 1
 
     while True:
         questions = page.query_selector_all("div[role='listitem']")
+        processed_qestions = []
+        extracted = []
+        seen = set()
 
         for q in questions:
             title_el = q.query_selector("div[role='heading']")
@@ -43,11 +47,17 @@ def fill_form(page):
                 "type": qtype,
                 "options": options
             })
+            processed_qestions.append((q, qtype))
             qid += 1
 
+        # TODO : Make responos
+        answered_form = chat_filler.selector_test(extracted)
+        print("Answered form:", answered_form)
+        
+        for (q, qtype), answer in zip(processed_qestions, answered_form):
             filler = FILLERS.get(qtype)
             if filler:
-                filler(q, page) if qtype == "dropdown" else filler(q)
+                filler(q, page, answer['ANSWERS']) if qtype == "dropdown" else filler(q, answer['ANSWERS'])
 
         result = next_or_submit(page)
 

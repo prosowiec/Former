@@ -2,8 +2,8 @@ from playwright.sync_api import sync_playwright
 import json
 import csv
 import time
-from broswer_config import *
 import random
+from browser import launch_browser
 
 ANSWERS = [
     "Good experience overall",
@@ -144,77 +144,10 @@ def human_pause(a=1.5, b=4.5):
     """Longer, more realistic pauses"""
     time.sleep(random.uniform(a, b))
 
-# [Keep your existing helper functions: is_likert, detect_question_type, etc.]    
-def get_realistic_context(p):
-    """Create a realistic browser context"""
-    return p.chromium.launch_persistent_context(
-        user_data_dir="./browser_data",  # Persistent profile
-        headless=False,
-        args=[
-            '--disable-blink-features=AutomationControlled',
-            '--disable-dev-shm-usage',
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-web-security',
-            '--disable-features=IsolateOrigins,site-per-process',
-        ],
-        user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        viewport={'width': 1920, 'height': 1080},
-        locale='en-US',
-        timezone_id='America/New_York',
-    )
-
-def inject_stealth_scripts(page):
-    """Manual stealth - better than playwright-stealth"""
-    page.add_init_script("""
-        // Remove webdriver flag
-        Object.defineProperty(navigator, 'webdriver', {
-            get: () => undefined
-        });
-        
-        // Fix plugins
-        Object.defineProperty(navigator, 'plugins', {
-            get: () => [1, 2, 3, 4, 5]
-        });
-        
-        // Fix languages
-        Object.defineProperty(navigator, 'languages', {
-            get: () => ['en-US', 'en']
-        });
-        
-        // Chrome runtime
-        window.chrome = {
-            runtime: {}
-        };
-        
-        // Permissions
-        const originalQuery = window.navigator.permissions.query;
-        window.navigator.permissions.query = (parameters) => (
-            parameters.name === 'notifications' ?
-                Promise.resolve({ state: Notification.permission }) :
-                originalQuery(parameters)
-        );
-    """)
-
 def main():
     with sync_playwright() as p:
         # Use persistent context instead of regular browser
-        browser = p.chromium.launch(headless=False)
-
-        context = browser.new_context(
-            user_agent=random.choice(USER_AGENTS),
-            viewport=random.choice(VIEWPORTS),
-            timezone_id=random.choice(TIMEZONES),
-            locale=random.choice(LOCALES),
-        )
-
-        page = context.new_page()        
-        # Inject stealth manually
-        #inject_stealth_scripts(page)
-        
-        # Add random delay before starting
-        time.sleep(random.uniform(2, 5))
-        
+        pw, browser, page = launch_browser()
         page.goto(FORM_URL, wait_until="networkidle")
         
         # Random initial interactions
@@ -340,7 +273,9 @@ def main():
                     "; ".join(q["options"])
                 ])
         
-        context.close()
+        browser.close()
+        pw.stop()
+
 
 if __name__ == "__main__":
     for e in range(250):
