@@ -1,16 +1,4 @@
 import time
-# def next_or_submit(page):
-#     submit = page.locator("div[jsname='M2UYVd'][role='button']")
-#     if submit.count() and submit.first.is_visible():
-#         submit.first.click()
-#         return "submitted"
-
-#     next_btn = page.locator("div[jsname='OCpkoe'][role='button']")
-#     if next_btn.count() and next_btn.first.is_visible():
-#         next_btn.first.click()
-#         return "next"
-
-#     return "none"
 
 
 def next_or_submit(page): 
@@ -44,4 +32,30 @@ def next_or_submit(page):
             print("⚠️ Next button timeout, but continuing") 
             return "next" 
         
+    return "none"
+
+def go_next_or_submit_MS(page):
+    # If already on thank-you page → STOP
+    if "ThankYou" in page.url:
+        print("🎉 Submission confirmed")
+        return "submitted"
+
+    submit = page.locator("button[data-automation-id='submitButton']")
+    if submit.count() > 0:
+        if submit.first.is_enabled():
+            submit.first.click()
+            print("✅ Submit clicked")
+            return "submitted"
+        else:
+            print("⏳ Submit in progress, waiting...")
+            page.wait_for_url("**ThankYou**", timeout=15000)
+            return "submitted"
+
+    next_btn = page.locator("button[data-automation-id='nextButton']")
+    if next_btn.count() > 0 and next_btn.first.is_enabled():
+        next_btn.first.click()
+        print("➡️ Next section")
+        page.wait_for_load_state("networkidle")
+        return "next"
+
     return "none"

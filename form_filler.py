@@ -1,4 +1,4 @@
-from detectors import detect_question_type
+from detectors import detect_GOOGLE_question_type
 from extract import extract_options
 from fillers import text, choice, dropdown, matrix, date, time
 from navigation import next_or_submit
@@ -33,7 +33,7 @@ def fill_form(page, chat_filler: GeminiFormFiller):
                 continue
 
             title = title_el.inner_text().strip()
-            qtype = detect_question_type(q)
+            qtype = detect_GOOGLE_question_type(q)
             options = extract_options(q, qtype)
             print(f"Detected question: {title} | Type: {qtype} | Options: {options}")
             signature = (title.lower(), qtype, tuple(options))

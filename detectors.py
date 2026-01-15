@@ -1,4 +1,4 @@
-def detect_question_type(q):
+def detect_GOOGLE_question_type(q):
     # Section title
     if q.query_selector("div[role='heading']") and not q.query_selector(
         "input, textarea, select, div[role='radio'], div[role='checkbox'], div[role='listbox']"
@@ -45,4 +45,25 @@ def detect_question_type(q):
     if q.query_selector("div[role='radiogroup']"):
         return "multiple_choice"
 
+    return "unknown"
+
+def is_likert(q):
+    return (
+        q.query_selector("table") is not None and
+        q.query_selector("input[type='radio']") is not None
+    )
+
+def detect_MS_question_type(q):
+    if is_likert(q):
+        return "likert"
+    if q.query_selector("div[role='radiogroup'] span[role='radio']"):
+        return "star_rating"
+    if q.query_selector("input[type='text']"):
+        return "short_text"
+    if q.query_selector("textarea"):
+        return "paragraph"
+    if q.query_selector("div[data-automation-id='choiceItem']"):
+        return "multiple_choice"
+    if q.query_selector("select"):
+        return "dropdown"
     return "unknown"
