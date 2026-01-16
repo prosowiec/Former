@@ -1,91 +1,119 @@
-def extract_options(q):
-    options = []
-    choice_items = q.query_selector_all("div[data-automation-id='choiceItem']")
-    for c in choice_items:
-        options.append(c.inner_text().strip())
+# ---------- CHOICE ----------
+
+def extract_multiple_choice(q):
+    options = [
+        c.inner_text().strip()
+        for c in q.query_selector_all("div[data-automation-id='choiceItem']")
+        if c.inner_text().strip()
+    ]
+
     return options
 
 
-def extract_dropdown_options(q):
-    options = []
+def extract_checkboxes(q):
+    options = [
+        c.inner_text().strip()
+        for c in q.query_selector_all("div[data-automation-id='choiceItem']")
+        if c.inner_text().strip()
+    ]
+
+    return options
+
+
+def extract_dropdown(q):
     select = q.query_selector("select")
-    if not select:
-        return options
+    options = []
 
-    for opt in select.query_selector_all("option"):
-        text = opt.inner_text().strip()
-        if text:
-            options.append(text)
+    if select:
+        options = [
+            opt.inner_text().strip()
+            for opt in select.query_selector_all("option")
+            if opt.inner_text().strip()
+        ]
+
     return options
 
-def extract_star_count(q):
-    return len(q.query_selector_all('span[role="radio"]'))
+# ---------- TEXT ----------
+
+def extract_text(q):
+    el = q.query_selector("input[type='text'], input[data-automation-id='textInput']")
+    return {"max_length": el.get_attribute("maxlength") if el else None}
 
 
-def extract_star_labels(q):
-    stars = q.query_selector_all('span[role="radio"]')
-    return [s.get_attribute("aria-label") for s in stars if s.get_attribute("aria-label")]
+def extract_paragraph(q):
+    return []
+
+
+# ---------- RATING / SCALE ----------
+
+def extract_star_rating(q):
+    stars = q.query_selector_all("span[role='radio']")
+    labels = [
+        s.get_attribute("aria-label")
+        for s in stars
+        if s.get_attribute("aria-label")
+    ]
+
+    return labels if labels else []
 
 
 def extract_linear_scale(q):
     radios = q.query_selector_all("div[role='radio']")
-    labels = [r.inner_text().strip() for r in radios]
-    return {
-        "min": labels[0] if labels else None,
-        "max": labels[-1] if labels else None,
-        "steps": len(labels)
-    }
+    labels = [r.inner_text().strip() for r in radios if r.inner_text().strip()]
+
+    return labels if labels else []
 
 
 def extract_nps(q):
     radios = q.query_selector_all("td[role='presentation']")
-    labels = [r.inner_text().strip() for r in radios]
-    return {
-        "scale": labels,  # ["0", "1", ..., "10"]
-        "min": 0,
-        "max": 10
-    }
-    
+    scale = [r.inner_text().strip() for r in radios if r.inner_text().strip()]
+
+    return scale if scale else []
+# ---------- DATE ----------
+
 def extract_date(q):
-    date_input = q.query_selector("input[type='date']")
+    date_input = q.query_selector(
+        "input[type='date'], input[role='combobox'][aria-haspopup='dialog']"
+    )
+
     return {
-        "type": "date",
-        "format": "YYYY-MM-DD" if date_input else None
+        "format": "DD-YY-YYYY" if date_input else None
     }
 
-def extract_text(q):
-    return {
-        "type": "short_text",
-        "max_length": q.query_selector("input[type='text']").get_attribute("maxlength")
-        if q.query_selector("input[type='text']") else None
-    }
+# ---------- LIKERT ----------
 
+def extract_likert(q):
+    headers = [
+        h.inner_text().strip()
+        for h in q.query_selector_all('th[data-automation-id="likerTableTh"] span')
+        if h.inner_text().strip()
+    ]
 
-def extract_paragraph(q):
-    return {
-        "type": "paragraph"
-    }
+    statements = [
+        s.inner_text().strip()
+        for s in q.query_selector_all('th[data-automation-id="likerStatementTd"] span')
+        if s.inner_text().strip()
+    ]
 
+    questions = [
+        {
+            "type": "radio",
+            "question": statement,
+            "options": [headers]
+        }
+        for statement in statements
+    ]
 
-def extract_likert_options(q):
-    headers = q.query_selector_all('th[data-automation-id="likerTableTh"] span')
-    header_texts = [h.inner_text().strip() for h in headers]
+    return questions
 
-    statements = q.query_selector_all('th[data-automation-id="likerStatementTd"] span')
-    statement_texts = [s.inner_text().strip() for s in statements]
-
-    return header_texts, statement_texts
+# ---------- RANKING ----------
 
 def extract_ranking(q):
-    items = q.query_selector_all("div[data-automation-id='rankItem']")
-    labels = []
+    items = q.query_selector_all("div[data-automation-id='rankingItemContent']")
+    labels = [
+        item.inner_text().strip()
+        for item in items
+        if item.inner_text().strip()
+    ]
 
-    for item in items:
-        label = item.inner_text().strip()
-        if label:
-            labels.append(label)
-
-    return {
-        "items": labels,
-        "positions": list(range(1, len(labels) + 1))
-    }
+    return labels if labels else []

@@ -47,7 +47,7 @@ RANDOM_ANSWERS = {
     # RANKING
     "ranking": lambda q: random.sample(
         [i.inner_text().strip()
-         for i in q.query_selector_all("div[data-automation-id='rankingItemContent']")],
+         for i in q.query_selector_all("div[data-automation-id='c']")],
         k=len(q.query_selector_all("div[data-automation-id='rankingItemContent']"))
     )
 }

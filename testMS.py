@@ -28,14 +28,14 @@ FILLERS = {
 EXTRACTORS = {
     "text": extract_text,
     "paragraph": extract_paragraph,
-    "radio": extract_options,
-    "checkboxes": extract_options,
-    "dropdown": extract_dropdown_options,
-    "star_rating": extract_star_labels,
+    "radio": extract_checkboxes,
+    "checkboxes": extract_multiple_choice,
+    "dropdown": extract_dropdown,
+    "star_rating": extract_star_rating,
     "linear_scale": extract_linear_scale,
     "nps": extract_nps,
     "date": extract_date,
-    "likert": extract_likert_options,
+    "likert": extract_likert,
     "hierarchical_ranking": extract_ranking,
 }
 
@@ -51,7 +51,7 @@ def extract_questions(page):
 
     qid = 1
     for q in question_items:
-        title_el = q.query_selector("div[data-automation-id='questionTitle']")
+        title_el = q.query_selector("span[data-automation-id='questionTitle']")
         title = title_el.inner_text().strip() if title_el else f"Question {qid}"
 
         q_type = detect_MS_question_type(q)
@@ -98,6 +98,7 @@ def fill_form(page):
         questions = page.query_selector_all("div[data-automation-id='questionItem']")
         question_types = [detect_MS_question_type(q) for q in questions]
         extracted = extract_questions(page)
+        print(extracted)
         for q, qtype in zip(questions, question_types):
             fill_question(page, q, qtype)
 
