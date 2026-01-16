@@ -27,3 +27,10 @@ def human_type(el, text):
 
 def human_pause(a=1.0, b=3.0):
     time.sleep(random.uniform(a, b))
+
+
+def human_before_question(page, q):
+    human_mouse_move(page)
+    human_pause(0.8, 2.0)
+    q.scroll_into_view_if_needed()
+    human_pause(0.3, 0.7)

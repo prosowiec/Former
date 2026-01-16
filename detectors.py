@@ -52,18 +52,60 @@ def is_likert(q):
         q.query_selector("table") is not None and
         q.query_selector("input[type='radio']") is not None
     )
+    
+def is_ms_date_input(q):
+    el = q.query_selector("input[role='combobox'][aria-haspopup='dialog']")
+    if not el:
+        return False
+
+    placeholder = (el.get_attribute("placeholder") or "").lower()
+    return "dd" in placeholder and "mm" in placeholder
 
 def detect_MS_question_type(q):
+    if q.query_selector("div[data-automation-id='npsContainer']"):
+        return "nps"
+
+    
     if is_likert(q):
         return "likert"
+
+    # ---------- RANKING ----------
+    # Ranking questions contain rank items with dropdowns per row
+    if q.query_selector("div[data-automation-id='rankItem']"):
+        return "ranking"
+
+    # ---------- NPS (0–10 scale) ----------
+    # NPS is a linear scale with exactly 11 radios (0–10)
+    radios = q.query_selector_all("div[role='radio']")
+    # ---------- LINEAR SCALE (non-NPS rating) ----------
+    if radios and 2 <= len(radios) <= 10:
+        return "linear_scale"
+
+    # ---------- STAR RATING ----------
     if q.query_selector("div[role='radiogroup'] span[role='radio']"):
         return "star_rating"
-    if q.query_selector("input[type='text']"):
-        return "short_text"
-    if q.query_selector("textarea"):
-        return "paragraph"
+    
+    # data-automation-id="rankingItemContent"
+    # ---------- MULTIPLE CHOICE (radio / checkbox) ----------
     if q.query_selector("div[data-automation-id='choiceItem']"):
-        return "multiple_choice"
+        return "radio"
+    
+    if q.query_selector("div[data-automation-id='rankingItemContent']"):
+        return "hierarchical_ranking"
+    # ---------- DROPDOWN ----------
     if q.query_selector("select"):
         return "dropdown"
+
+    # ---------- DATE ----------
+    if is_ms_date_input(q):
+        return "date"
+
+    # ---------- SHORT TEXT ----------
+    if q.query_selector("input[data-automation-id='textInput']"):
+        return "text"
+
+    # ---------- PARAGRAPH ----------
+    if q.query_selector("textarea"):
+        return "paragraph"
+
     return "unknown"
