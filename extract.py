@@ -1,14 +1,4 @@
-from extractors import extractGoogle
-
-EXTRACTORS = {
-    "multiple_choice": extractGoogle.extract_radio,
-    "checkboxes": extractGoogle.extract_checkboxes,
-    "dropdown": extractGoogle.extract_dropdown,
-    "short_text": lambda q: extractGoogle.extract_text(q, "short_text"),
-    "paragraph": lambda q: extractGoogle.extract_text(q, "paragraph"),
-    "matrix_radio": extractGoogle.extract_matrix_radio,
-    "matrix_checkbox": extractGoogle.extract_matrix_checkbox,
-}
+from extractors.extractMethods import GOOGLE_EXTRACTORS, MS_EXTRACTORS
 
 def remove_aria_hidden_children(q):
     """
@@ -22,17 +12,42 @@ def remove_aria_hidden_children(q):
     
     return q
 
-def extract_options(q, qtype):
+def extract_options(q, qtype, platform):
     """
     Dispatch extractor based on detected question type
     Returns structured extraction dict or None
     """
     
-    # Remove all aria-hidden children
-    q = remove_aria_hidden_children(q)
-    
-    extractor = EXTRACTORS.get(qtype)
+    if platform == "MS":
+        extractor = MS_EXTRACTORS.get(qtype)
+    else:  # GOOGLE
+        # Remove all aria-hidden children
+        q = remove_aria_hidden_children(q)
+        extractor = GOOGLE_EXTRACTORS.get(qtype)
+        
     if not extractor:
         return []
     
     return extractor(q)
+
+def extract_question_items(page, platform):
+    """
+    Docstring for extract_question_items
+    
+    :param page: Description
+    :param platform: Description
+    """
+    if platform == "MS":
+        question_items = page.query_selector_all("div[data-automation-id='questionItem']")
+    else:  # GOOGLE
+        question_items = page.query_selector_all("div[role='listitem']")
+        
+    return question_items
+
+def extract_title(q, platform):
+    if platform == "MS":
+        title_el = q.query_selector("span[data-automation-id='questionTitle']")
+        return title_el.inner_text().strip() if title_el else ""
+    else:  # GOOGLE
+        title_el = q.query_selector("div[role='heading']")
+        return title_el.inner_text().strip() if title_el else ""

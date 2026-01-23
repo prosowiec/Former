@@ -47,6 +47,7 @@ def extract_paragraph(q):
 # ---------- RATING / SCALE ----------
 
 def extract_star_rating(q):
+    
     stars = q.query_selector_all("span[role='radio']")
     labels = [
         s.get_attribute("aria-label")
@@ -117,3 +118,16 @@ def extract_ranking(q):
     ]
 
     return labels if labels else []
+
+def extract_title(q):
+    title_el = q.query_selector("span[data-automation-id='questionTitle']")
+    return title_el.inner_text().strip() if title_el else ""
+
+def extract_question_items(page):
+    """
+    Docstring for extract_question_items
+    
+    :param page: Description
+    """
+    question_items = page.query_selector_all("div[data-automation-id='questionItem']")
+    return question_items

@@ -109,3 +109,20 @@ def detect_MS_question_type(q):
         return "paragraph"
 
     return "unknown"
+
+def detect_question_type(q, platform="GOOGLE"):
+    if platform == "GOOGLE":
+        return detect_GOOGLE_question_type(q)
+    elif platform == "MS":
+        return detect_MS_question_type(q)
+    else:
+        return "unknown"
+    
+def detect_platform(url):
+
+    if "docs.google.com/forms" in url:
+        return "GOOGLE"
+    elif "forms.cloud.microsoft" in url:
+        return "MS"
+    else:
+        return "UNKNOWN"

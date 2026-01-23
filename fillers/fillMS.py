@@ -54,10 +54,17 @@ def fill_dropdown(q, answer):
 
 # ---------- RATING / SCALE ----------
 def fill_star_rating(q, answer):
+    # answer = answer.lower()
+    # answer = answer.replace(" stars", "").replace(" star", "")
+    # answer = int(answer)
     radios = q.query_selector_all("span[role='radio']")
-    if 1 <= answer <= len(radios):
-        human_pause()
-        radios[answer - 1].click()
+    for radio in radios:
+        value = radio.get_attribute("aria-label")
+        if value == answer:
+            human_pause()
+            radio.click()
+            return
+    
 
 
 def fill_linear_scale(q, answer):
@@ -85,12 +92,34 @@ def fill_date(q, answer):
 
 # ---------- LIKERT ----------
 def fill_likert(q, answer):
-    rows = q.query_selector_all("tr")
-    for row in rows:
-        radios = row.query_selector_all("input[type='radio']")
-        if radios and answer < len(radios):
-            human_pause(0.1, 0.3)
-            radios[answer].check()
+    rows = q.query_selector_all("tr[data-automation-id='likerTableTr']")
+    headers = [
+        h.inner_text().strip()
+        for h in q.query_selector_all('th[data-automation-id="likerTableTh"] span')
+        if h.inner_text().strip()
+    ]
+    for col in range(len(headers)):
+        for row in rows:
+            radios = row.query_selector_all("input[type='radio']")
+            row_header_el = row.query_selector('td[data-automation-id="likerRowTd"]')
+            row_header_el = row_header_el.inner_text().strip() if row_header_el else ""
+
+            row_answer = answer.get(row_header_el)
+            if row_answer is None:
+                continue
+            
+            header = headers[col]
+            if header == row_answer:
+                human_pause(0.1, 0.3)
+                radios[col].click()
+
+
+    # for row in rows:
+    #     radios = row.query_selector_all("input[type='radio']")
+    #     options = row.query_selector_all("td[data-automation-id='likerRadioTd'")
+    #     if radios and answer < len(radios):
+    #         human_pause(0.1, 0.3)
+    #         radios[answer].check()
 
 
 # ---------- RANKING ----------

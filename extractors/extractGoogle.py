@@ -135,3 +135,16 @@ def extract_matrix_checkbox(q):
         "questionTitle": extract_title(q),
         "options": questionRow
     }
+
+def extract_title(q):
+    title_el = q.query_selector("div[role='heading']")
+    return title_el.inner_text().strip() if title_el else ""
+
+def extract_question_items(page):
+    """
+    Docstring for extract_question_items
+    
+    :param page: Description
+    """
+    questions = page.query_selector_all("div[role='listitem']")
+    return questions

@@ -1,7 +1,7 @@
 import time
 
 
-def next_or_submit(page): 
+def next_or_submit_GOOGLE(page): 
     """Handle Next/Submit buttons""" # SUBMIT (last page) 
     submit = page.locator("div[role='button'][jsname='M2UYVd']") 
     if submit.count() > 0 and submit.first.is_visible(): 
@@ -59,3 +59,10 @@ def go_next_or_submit_MS(page):
         return "next"
 
     return "none"
+
+
+def go_next_or_submit(page, platform="GOOGLE"):
+    if platform == "MS":
+        return go_next_or_submit_MS(page)
+    else:  # GOOGLE
+        return next_or_submit_GOOGLE(page)
