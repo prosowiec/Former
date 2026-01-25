@@ -9,4 +9,5 @@ def fill_question(page, q, platform, qtype, answer):
         filler = None
 
     if filler:
-        filler(q, page, answer['ANSWERS']) if qtype == "dropdown" else filler(q, answer['ANSWERS'])
+        #, "hierarchical_ranking"
+        filler(q, page, answer['ANSWERS']) if qtype in ["dropdown", "hierarchical_ranking"] else filler(q, answer['ANSWERS'])

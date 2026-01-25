@@ -77,7 +77,7 @@ def fill_linear_scale(q, answer):
 def fill_nps(q, answer):
     # NPS is just a 0–10 linear scale
     radios = q.query_selector_all("td[role='presentation']")
-    idx = min(answer, len(radios) - 1)
+    idx = min(int(answer), len(radios) - 1)
     human_pause()
     radios[idx].click()
 
@@ -98,45 +98,58 @@ def fill_likert(q, answer):
         for h in q.query_selector_all('th[data-automation-id="likerTableTh"] span')
         if h.inner_text().strip()
     ]
-    for col in range(len(headers)):
-        for row in rows:
-            radios = row.query_selector_all("input[type='radio']")
-            row_header_el = row.query_selector('td[data-automation-id="likerRowTd"]')
-            row_header_el = row_header_el.inner_text().strip() if row_header_el else ""
+    for row in rows:
+        radios = row.query_selector_all("input[type='radio']")
+        row_header_el = row.query_selector('th[data-automation-id="likerStatementTd"]')
+        row_header_el = row_header_el.inner_text().strip() if row_header_el else ""
 
-            row_answer = answer.get(row_header_el)
-            if row_answer is None:
-                continue
-            
-            header = headers[col]
-            if header == row_answer:
-                human_pause(0.1, 0.3)
-                radios[col].click()
+        row_answer = answer.get(row_header_el)
+        if row_answer is None:
+            continue
+        
+        if row_answer in headers:
+            header_index = headers.index(row_answer)
+            human_pause(0.1, 0.3)
+            radios[header_index].click()
 
-
-    # for row in rows:
-    #     radios = row.query_selector_all("input[type='radio']")
-    #     options = row.query_selector_all("td[data-automation-id='likerRadioTd'")
-    #     if radios and answer < len(radios):
-    #         human_pause(0.1, 0.3)
-    #         radios[answer].check()
 
 
 # ---------- RANKING ----------
-def fill_ranking(q, answer):
-    """
-    answer = ordered list of labels
-    """
-    items = q.query_selector_all("div[data-automation-id='rankingItemContent']")
-    label_map = {
-        i.query_selector("span").inner_text().strip(): i
-        for i in items
-    }
+def fill_ranking(q, page, answer):
+    import time
 
-    for idx, label in enumerate(answer):
-        item = label_map.get(label)
-        if item:
-            select = item.query_selector("select")
-            if select:
-                human_pause(0.2, 0.4)
-                select.select_option(str(idx + 1))
+    def get_items_and_buttons():
+        items = q.query_selector_all("div[data-automation-id='rankingItemContent']")
+        buttons_areas = q.query_selector_all(".arrow-container")
+        label_map = {
+            i.query_selector("span").inner_text().strip(): i
+            for i in items
+        }
+        button_map = {
+            items[i].query_selector("span").inner_text().strip(): buttons_areas[i]
+            for i in range(len(items))
+        }
+        return label_map, button_map, items
+
+
+
+    while True:
+        labels, buttons, items = get_items_and_buttons()
+        if list(labels.keys()) == answer:
+            break
+        
+        for idx, label in enumerate(labels.keys()):
+            designated_index = answer.index(label)
+            current_index = idx
+            if designated_index == current_index:
+                continue
+            button = buttons.get(label)
+            if not button:
+                continue
+            if designated_index > current_index:
+                down_button = button.query_selector_all("button")[1]
+                page.evaluate("(el) => el.click()", down_button)
+            else:
+                up_button = button.query_selector_all("button")[0]
+                page.evaluate("(el) => el.click()", up_button)
+            human_pause(0.2, 0.4)

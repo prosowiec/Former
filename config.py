@@ -218,7 +218,7 @@ MS_ANSWERS = [
     "question": "2.\nText",
     "type": "text",
     "options": { "max_length": "4000" },
-    "ANSWERS": "To jest przykładowa odpowiedź tekstowa udzielona przez respondenta."
+    "ANSWERS": "To ."
   },
   {
     "id": 3,
@@ -239,7 +239,7 @@ MS_ANSWERS = [
     "question": "5.\nCheckbox",
     "type": "hierarchical_ranking",
     "options": ["Opcja 1", "Opcja 2", "Opcja 3"],
-    "ANSWERS": ["Opcja 1", "Opcja 3"]
+    "ANSWERS": ["Opcja 3",  "Opcja 2", "Opcja 1"]
   },
   {
     "id": 6,

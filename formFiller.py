@@ -55,7 +55,7 @@ def go_through_form(page, chat_filler: GeminiFormFiller, platform="GOOGLE"):
 
         human_pause(1.5, 3.0)
 
-        if go_next_or_submit(page) == "submitted":
+        if go_next_or_submit(page, platform) == "submitted":
             human_pause(1.5, 3.0)
 
             break
