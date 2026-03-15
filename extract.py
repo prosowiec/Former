@@ -1,4 +1,5 @@
-from extractors.extractMethods import GOOGLE_EXTRACTORS, MS_EXTRACTORS
+from extractors.extractGoogle import GOOGLE_EXTRACTORS
+from extractors.extractMS import MS_EXTRACTORS
 
 def remove_aria_hidden_children(q):
     """

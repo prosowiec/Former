@@ -1,4 +1,5 @@
-from fillers.fillMethods import GOOGLE_FILLERS, MS_FILLERS
+from fillers.fillGoogle import GOOGLE_FILLERS
+from fillers.fillMS import MS_FILLERS
 
 def fill_question(page, q, platform, qtype, answer):
     if platform == "GOOGLE":

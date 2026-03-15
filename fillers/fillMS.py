@@ -153,3 +153,21 @@ def fill_ranking(q, page, answer):
                 up_button = button.query_selector_all("button")[0]
                 page.evaluate("(el) => el.click()", up_button)
             human_pause(0.2, 0.4)
+
+MS_FILLERS = {
+    "text": fill_text,
+    "paragraph": fill_paragraph,
+
+    "radio": fill_multiple_choice,
+    "checkboxes": fill_checkboxes,
+    "dropdown": fill_dropdown,
+
+    "star_rating": fill_star_rating,
+    "linear_scale": fill_linear_scale,
+    "nps": fill_nps,
+
+    "date": fill_date,
+    "likert": fill_likert,
+    "hierarchical_ranking": fill_ranking,
+}
+

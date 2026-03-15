@@ -1,15 +1,19 @@
-from gemini import GeminiFormFiller
+from LLM_interface.ChatInterface import chatInterface
+from LLM_interface.TestResponses import testResponses
+from LLM_interface.Gemini import geminiFormFiller
+from browser import launch_browser
+
 from detectors import detect_question_type, detect_platform
 from extract import extract_options, extract_title, extract_question_items
 from fill import fill_question
 from navigation import go_next_or_submit
-from human import human_pause
+from human import human_pause, human_before_question
 import config
 import json
 
 
 
-def go_through_form(page, chat_filler: GeminiFormFiller, platform="GOOGLE"):
+def go_through_form(page, chat_filler: chatInterface, platform="GOOGLE"):
     qid = 1
     
     while True:
@@ -46,11 +50,13 @@ def go_through_form(page, chat_filler: GeminiFormFiller, platform="GOOGLE"):
 
         
         print("Extracted questions:", extracted)
-        answered_form = chat_filler.selector_test(extracted)
-        answered_form = config.MS_ANSWERS if platform == "MS" else config.GOOGLE_ANSWERS
+
+        answered_form = chat_filler.get_selection(extracted)
+
         print("Answered form:", answered_form)
         
         for (q, qtype), answer in zip(processed_qestions, answered_form):
+            human_before_question(page, q)
             fill_question(page, q, platform, qtype, answer)
 
         human_pause(1.5, 3.0)
@@ -63,14 +69,13 @@ def go_through_form(page, chat_filler: GeminiFormFiller, platform="GOOGLE"):
 
         
 def main():
-    from browser import launch_browser
     playwright, browser, page = launch_browser()
     API_KEY = config.GEMINI_API_KEY
     
-    chat_filler = GeminiFormFiller(API_KEY)
-
+    chat_filler = geminiFormFiller(API_KEY)
+    chat_filler = testResponses()
     try:
-        FORM_URL = config.FORM_URL_MS
+        FORM_URL = config.FORM_URL_GOOGLE
         platform = detect_platform(FORM_URL)
         page.goto(FORM_URL, wait_until="networkidle")
 

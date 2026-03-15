@@ -131,3 +131,19 @@ def extract_question_items(page):
     """
     question_items = page.query_selector_all("div[data-automation-id='questionItem']")
     return question_items
+
+
+MS_EXTRACTORS = {
+    "text": extract_text,
+    "paragraph": extract_paragraph,
+    "radio": extract_checkboxes,
+    "checkboxes": extract_multiple_choice,
+    "dropdown": extract_dropdown,
+    "star_rating": extract_star_rating,
+    "linear_scale": extract_linear_scale,
+    "nps": extract_nps,
+    "date": extract_date,
+    "likert": extract_likert,
+    "hierarchical_ranking": extract_ranking,
+    "title": extract_title,
+}

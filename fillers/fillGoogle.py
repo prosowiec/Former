@@ -109,3 +109,16 @@ def fill_time(q, answer):
     human_pause(0.2, 0.5)
     minute_input.click() 
     minute_input.fill(answer[0])
+    
+GOOGLE_FILLERS = {
+    "short_text": fill_short_text,
+    "paragraph": fill_paragraph,
+    "linear_scale_radio": fill_linear_scale_radio,
+    "checkboxes": fill_checkboxes,
+    "dropdown": fill_dropdown,
+    "matrix_radio": fill_matrix_radio,
+    'multiple_choice': fill_checkboxes,
+    "date": fill_date,
+    "time": fill_time,
+    'matrix_checkbox': fill_matrix_checkbox,
+}

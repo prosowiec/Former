@@ -148,3 +148,14 @@ def extract_question_items(page):
     """
     questions = page.query_selector_all("div[role='listitem']")
     return questions
+
+GOOGLE_EXTRACTORS = {
+    "multiple_choice": extract_radio,
+    "checkboxes": extract_checkboxes,
+    "dropdown": extract_dropdown,
+    "short_text": lambda q: extract_text(q, "short_text"),
+    "paragraph": lambda q: extract_text(q, "paragraph"),
+    "matrix_radio": extract_matrix_radio,
+    "matrix_checkbox": extract_matrix_checkbox,
+    "title": extract_title,
+}
