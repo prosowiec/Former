@@ -8,7 +8,7 @@ from extract import extract_options, extract_title, extract_question_items
 from fill import fill_question
 from navigation import go_next_or_submit
 from human import human_pause, human_before_question
-import config
+import config as config
 import json
 
 
