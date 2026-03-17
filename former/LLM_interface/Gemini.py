@@ -1,7 +1,7 @@
 import json
 import google.generativeai as genai
 
-from LLM_interface.ChatInterface import chatInterface
+from former.LLM_interface.ChatInterface import chatInterface
 
 class geminiFormFiller(chatInterface):
     def __init__(self, api_key: str, model_name: str = "gemini-2.0-flash-lite"):

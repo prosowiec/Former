@@ -1,14 +1,14 @@
-from LLM_interface.ChatInterface import chatInterface
-from LLM_interface.TestResponses import testResponses
-from LLM_interface.Gemini import geminiFormFiller
-from browser import launch_browser
+from former.LLM_interface.ChatInterface import chatInterface
+from former.LLM_interface.Gemini import geminiFormFiller
+from former.LLM_interface.ChatgptFormFiller import chatgptFormFiller
+from former.browser import launch_browser
 
-from detectors import detect_question_type, detect_platform
-from extract import extract_options, extract_title, extract_question_items
-from fill import fill_question
-from navigation import go_next_or_submit
-from human import human_pause, human_before_question
-import config as config
+from former.detectors import detect_question_type, detect_platform
+from former.extract import extract_options, extract_title, extract_question_items
+from former.fill import fill_question
+from former.navigation import go_next_or_submit
+from former.human import human_pause, human_before_question
+import former.config as config
 import json
 
 
@@ -50,8 +50,13 @@ def go_through_form(page, chat_filler: chatInterface, platform="GOOGLE"):
 
         
         print("Extracted questions:", extracted)
+        
+        try:
+            answered_form = chat_filler.get_selection(extracted)
 
-        answered_form = chat_filler.get_selection(extracted)
+        except Exception as e:
+            print(f"Error occurred while getting ChatGPT selection: {e}")
+            raise
 
         print("Answered form:", answered_form)
         
@@ -68,14 +73,15 @@ def go_through_form(page, chat_filler: chatInterface, platform="GOOGLE"):
 
 
         
-def main():
+def main(FORM_URL = config.FORM_URL_GOOGLE, chat_filler = chatgptFormFiller(config.OPENAI_API_KEY)):
     playwright, browser, page = launch_browser()
-    API_KEY = config.GEMINI_API_KEY
+    # API_KEY = config.OPENAI_API_KEY
     
-    chat_filler = geminiFormFiller(API_KEY)
-    chat_filler = testResponses()
+    # chat_filler = chatgptFormFiller(API_KEY)
+    # chat_filler = geminiFormFiller(API_KEY)
+    #chat_filler = testResponses()
     try:
-        FORM_URL = config.FORM_URL_GOOGLE
+        
         platform = detect_platform(FORM_URL)
         page.goto(FORM_URL, wait_until="networkidle")
 

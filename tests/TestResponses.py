@@ -1,6 +1,6 @@
 import random
 from datetime import datetime, timedelta
-from LLM_interface.ChatInterface import chatInterface
+from former.LLM_interface.ChatInterface import chatInterface
 
 class testResponses(chatInterface):
     ANSWERS = [

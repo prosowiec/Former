@@ -1,7 +1,7 @@
 import json
 from openai import OpenAI
 
-from LLM_interface.ChatInterface import chatInterface
+from former.LLM_interface.ChatInterface import chatInterface
 
 
 class chatgptFormFiller(chatInterface):
@@ -43,4 +43,4 @@ class chatgptFormFiller(chatInterface):
             return json.loads(text)
         except Exception as e:
             print(f"Error getting ChatGPT selection: {e}")
-            return {}
+            raise Exception(f"ChatGPT API error: {e}")

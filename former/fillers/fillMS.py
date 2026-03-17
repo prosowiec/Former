@@ -1,6 +1,6 @@
 import random
 import time
-from human import human_type, human_pause
+from former.human import human_type, human_pause
 
 
 # ---------- TEXT ----------
