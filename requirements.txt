@@ -1,0 +1,6 @@
+apache-airflow==2.9.0
+playwright
+python-dotenv
+openai
+google-generativeai
+pytest

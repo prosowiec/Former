@@ -70,29 +70,23 @@ def go_through_form(page, chat_filler: chatInterface, platform="GOOGLE"):
             human_pause(1.5, 3.0)
 
             break
-
-
         
-def main(FORM_URL = config.FORM_URL_GOOGLE, chat_filler = chatgptFormFiller(config.OPENAI_API_KEY)):
+        
+def run_form_pipeline(form_url, chat_filler):
     playwright, browser, page = launch_browser()
-    # API_KEY = config.OPENAI_API_KEY
-    
-    # chat_filler = chatgptFormFiller(API_KEY)
-    # chat_filler = geminiFormFiller(API_KEY)
-    #chat_filler = testResponses()
     try:
-        
-        platform = detect_platform(FORM_URL)
-        page.goto(FORM_URL, wait_until="networkidle")
-
-        go_through_form(page, chat_filler, platform=platform)
-
-
-        print("Form submitted successfully!")
-
+        platform = detect_platform(form_url)
+        page.goto(form_url, wait_until="networkidle")
+        go_through_form(page, chat_filler, platform)
     finally:
         browser.close()
         playwright.stop()
+
+        
+def main():
+    FORM_URL = config.FORM_URL_GOOGLE
+    chat_filler = chatgptFormFiller(config.OPENAI_API_KEY)
+    run_form_pipeline(FORM_URL, chat_filler)
         
 if __name__ == "__main__":
     main()
