@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:13
@@ -9,47 +7,66 @@ services:
       POSTGRES_DB: airflow
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 10
 
   airflow-init:
     build: .
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    command: >
-      bash -c "
-      airflow db init &&
-      airflow users create --username admin --password admin --firstname a --lastname a --role Admin --email a@a.com
-      "
+    command: ["airflow", "db", "migrate"]
 
-  airflow-webserver:
+  airflow-api-server:
     build: .
     depends_on:
-      - postgres
+      airflow-init:
+        condition: service_completed_successfully
     ports:
-      - "8080:8080"
+      - "9090:8080"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./former:/opt/airflow/former
       - ./tests:/opt/airflow/tests
+      - airflow-home:/opt/airflow
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    command: webserver
+      AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
+    command: ["airflow", "api-server"]
 
   airflow-scheduler:
     build: .
     depends_on:
-      - postgres
+      airflow-init:
+        condition: service_completed_successfully
     volumes:
       - ./dags:/opt/airflow/dags
       - ./former:/opt/airflow/former
-      - ./tests:/opt/airflow/tests
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    command: scheduler
+    command: ["airflow", "scheduler"]
+
+  airflow-dag-processor:
+    build: .
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./former:/opt/airflow/former
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    command: ["airflow", "dag-processor"]
 
 volumes:
   postgres-db-volume:
+  airflow-home:

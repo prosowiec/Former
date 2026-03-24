@@ -1,12 +1,9 @@
-FROM apache/airflow:2.9.0-python3.10
-
+FROM apache/airflow:3.1.8-python3.10
+RUN pip install apache-airflow-providers-fab
 USER root
 
-# Install system deps for Playwright
+# System deps for Playwright
 RUN apt-get update && apt-get install -y \
-    wget \
-    curl \
-    gnupg \
     libnss3 \
     libatk1.0-0 \
     libatk-bridge2.0-0 \
@@ -22,13 +19,14 @@ RUN apt-get update && apt-get install -y \
     libcairo2 \
     libatspi2.0-0 \
     libgtk-3-0 \
-    && apt-get clean
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 USER airflow
 
-# Install Python deps
 COPY requirements.txt .
+
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
-RUN playwright install --with-deps
+# Install Playwright browser
+RUN playwright install chromium
