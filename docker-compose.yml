@@ -1,3 +1,17 @@
+
+x-airflow-env: &airflow-env
+  AIRFLOW__CORE__EXECUTOR: LocalExecutor
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+  AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-api-server:8080/execution/"
+  AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+  AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
+  AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
+
+  AIRFLOW__CORE__JWT_SECRET_KEY: "9f8c1b7d9a2e4f6c8b0a1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+  AIRFLOW__API_AUTH__JWT_SECRET: "9f8c1b7d9a2e4f6c8b0a1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+
+  PYTHONPATH: /opt/airflow
+
 services:
   postgres:
     image: postgres:13
@@ -18,8 +32,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      <<: *airflow-env
     command: ["airflow", "db", "migrate"]
 
   airflow-api-server:
@@ -33,12 +46,10 @@ services:
       - ./dags:/opt/airflow/dags
       - ./former:/opt/airflow/former
       - ./tests:/opt/airflow/tests
-      - airflow-home:/opt/airflow
+      - airflow-logs:/opt/airflow/logs
     environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-      AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
-      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
+      <<: *airflow-env
+      AIRFLOW__API__SECRET_KEY: "another_long_secret_for_ui_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     command: ["airflow", "api-server"]
 
   airflow-scheduler:
@@ -49,9 +60,9 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
       - ./former:/opt/airflow/former
+      - airflow-logs:/opt/airflow/logs
     environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      <<: *airflow-env
     command: ["airflow", "scheduler"]
 
   airflow-dag-processor:
@@ -62,11 +73,11 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
       - ./former:/opt/airflow/former
+      - airflow-logs:/opt/airflow/logs
     environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      <<: *airflow-env
     command: ["airflow", "dag-processor"]
 
 volumes:
   postgres-db-volume:
-  airflow-home:
+  airflow-logs:

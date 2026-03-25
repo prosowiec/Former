@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 
-from former.formFiller import main, run_form_pipeline
+from former.formFiller import run_form_pipeline
 
 
 default_args = {
@@ -26,7 +26,6 @@ with DAG(
     dag_id="form_filler_pipeline",
     default_args=default_args,
     description="Auto fill forms using LLM",
-    schedule_interval=None,
     start_date=datetime(2024, 1, 1),
     catchup=False,
     tags=["forms", "automation"],
