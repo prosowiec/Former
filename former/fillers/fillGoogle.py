@@ -58,7 +58,7 @@ def fill_matrix_radio(q, answer):
             continue
 
         for radio in radios:
-            radio_value = radio.get_attribute("data-answer-value")
+            radio_value = radio.get_attribute("data-value")
             if radio_value and radio_value.strip() == selected_answer:
                 time.sleep(random.uniform(0.2, 0.4))
                 radio.scroll_into_view_if_needed()

@@ -4,7 +4,6 @@ x-airflow-env: &airflow-env
   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
   AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-api-server:8080/execution/"
   AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
-  AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
   AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
 
   AIRFLOW__CORE__JWT_SECRET_KEY: "9f8c1b7d9a2e4f6c8b0a1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
@@ -47,6 +46,7 @@ services:
       - ./former:/opt/airflow/former
       - ./tests:/opt/airflow/tests
       - airflow-logs:/opt/airflow/logs
+      - ./simple_auth_manager_passwords.json.generated:/opt/airflow/simple_auth_manager_passwords.json.generated
     environment:
       <<: *airflow-env
       AIRFLOW__API__SECRET_KEY: "another_long_secret_for_ui_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -61,9 +61,14 @@ services:
       - ./dags:/opt/airflow/dags
       - ./former:/opt/airflow/former
       - airflow-logs:/opt/airflow/logs
+      - ./simple_auth_manager_passwords.json.generated:/opt/airflow/simple_auth_manager_passwords.json.generated
+
     environment:
       <<: *airflow-env
-    command: ["airflow", "scheduler"]
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      DISPLAY: ":99"
+    command: ["bash", "-c", "Xvfb :99 -screen 0 1920x1080x24 & airflow scheduler"]
 
   airflow-dag-processor:
     build: .
@@ -74,6 +79,8 @@ services:
       - ./dags:/opt/airflow/dags
       - ./former:/opt/airflow/former
       - airflow-logs:/opt/airflow/logs
+      - ./simple_auth_manager_passwords.json.generated:/opt/airflow/simple_auth_manager_passwords.json.generated
+
     environment:
       <<: *airflow-env
     command: ["airflow", "dag-processor"]

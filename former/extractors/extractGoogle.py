@@ -11,9 +11,9 @@ def extract_radio(q):
         "type": "linear_scale_radio",
         "question": extract_title(q),
         "options": list(dict.fromkeys(
-            r.get_attribute("data-value").strip()
+            r.get_attribute("aria-label").strip()
             for r in q.query_selector_all("div[role='radio']")
-            if r.get_attribute("data-value")
+            if r.get_attribute("aria-label")
         ))
     }
     
@@ -22,9 +22,9 @@ def extract_checkboxes(q):
         "type": "checkboxes",
         "question": extract_title(q),
         "options": list(dict.fromkeys(
-            c.get_attribute("data-answer-value").strip()
+            c.get_attribute("aria-label").strip()
             for c in q.query_selector_all("div[role='checkbox']")
-            if c.get_attribute("data-answer-value")
+            if c.get_attribute("aria-label")
         ))
     }
 

@@ -22,15 +22,28 @@ class chatInterface(ABC):
             - For single-choice questions, use a string
             - For multiple-choice or checkbox questions, use a list of strings
             - For matrix questions, use an object mapping row names to selected column(s)
+            
+            YOU NEED TO ANSWER ALL QUESTIONS. If you don't know, make a reasonable guess. 
+            MAKE SURE TO THAT NUMBER OF ASNWERS MATCHES THE NUMBER OF QUESTIONS.
+
 
             Example output format:
+            [
             {{
-            "id": "qid",
-            "question": "title",
-            "type": "qtype",
-            "options": "options",
-            "ANSWERS": ["Selected Option 1", "Selected Option 2"]
+                "id": 1,
+                "question": "Question 1",
+                "type": "multiple_choice",
+                "options": ["A", "B"],
+                "ANSWERS": "A"
+            }},
+            {{
+                "id": 2,
+                "question": "Question 2",
+                "type": "paragraph",
+                "options": [],
+                "ANSWERS": "Some text"
             }}
+            ]
 
             Do NOT include explanations, comments, or extra text.
             Return JSON ONLY.

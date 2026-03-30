@@ -27,6 +27,8 @@ def go_through_form(page, chat_filler: chatInterface, platform="GOOGLE"):
 
             title = extract_title(q, platform)
             qtype = detect_question_type(q, platform)
+            if qtype == 'section_title':
+                continue
             options = extract_options(q, qtype, platform)
             
             print(f"Detected question: {title} | Type: {qtype} | Options: {options}")

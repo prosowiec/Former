@@ -1,3 +1,5 @@
 data/
 .env
 refrenceFiles/
+simple_auth_manager_passwords.json.generated
+former.egg-info

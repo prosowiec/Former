@@ -72,7 +72,7 @@ class testResponses(chatInterface):
             start = datetime(2023, 1, 1)
             end = datetime(2026, 12, 31)
             d = start + timedelta(days=random.randint(0, (end - start).days))
-            answer = d.strftime("%d-%m-%Y")
+            answer = d.strftime("%Y-%m-%d")
 
         result = question.copy()
         result["ANSWERS"] = answer

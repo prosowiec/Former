@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y \
     libatspi2.0-0 \
     libgtk-3-0 \
     && apt-get clean \
+    && apt-get install -y xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 USER airflow
