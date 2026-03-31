@@ -68,7 +68,7 @@ class chatgptFormFiller(chatInterface):
 
             text = response.choices[0].message.content
             print("Raw ChatGPT response:", text)
-            return json.loads(text)
+            return json.loads(text)['answers']
         except Exception as e:
             print(f"Error getting ChatGPT selection: {e}")
             raise Exception(f"ChatGPT API error: {e}")

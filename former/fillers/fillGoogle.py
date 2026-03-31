@@ -113,7 +113,7 @@ def fill_time(q, answer):
 GOOGLE_FILLERS = {
     "short_text": fill_short_text,
     "paragraph": fill_paragraph,
-    "linear_scale_radio": fill_linear_scale_radio,
+    "linear_scale_radio": fill_matrix_radio,
     "checkboxes": fill_checkboxes,
     "dropdown": fill_dropdown,
     "matrix_radio": fill_matrix_radio,
