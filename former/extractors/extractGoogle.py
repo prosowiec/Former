@@ -19,7 +19,7 @@ def extract_radio(q):
     
 def extract_checkboxes(q):
     return {
-        "type": "checkboxes",
+        "type": "checkbox",
         "question": extract_title(q),
         "options": list(dict.fromkeys(
             c.get_attribute("aria-label").strip()
@@ -151,7 +151,7 @@ def extract_question_items(page):
 
 GOOGLE_EXTRACTORS = {
     "multiple_choice": extract_radio,
-    "checkboxes": extract_checkboxes,
+    "checkbox": extract_checkboxes,
     "dropdown": extract_dropdown,
     "short_text": lambda q: extract_text(q, "short_text"),
     "paragraph": lambda q: extract_text(q, "paragraph"),

@@ -11,8 +11,14 @@ def fill_linear_scale_radio(q, answer):
 
 def fill_checkboxes(q, answers):
     boxes = q.query_selector_all("div[data-value]")
+    if not boxes:
+        boxes = q.query_selector_all("div[checkbox='checkbox']")
+        
     for box in boxes:
         text = box.get_attribute("data-value").strip()
+        if not text:
+            text = box.get_attribute("aria-label").strip()
+        
         if text in answers:
             time.sleep(random.uniform(0.2, 0.5))
             box.click()
@@ -114,7 +120,7 @@ GOOGLE_FILLERS = {
     "short_text": fill_short_text,
     "paragraph": fill_paragraph,
     "linear_scale_radio": fill_matrix_radio,
-    "checkboxes": fill_checkboxes,
+    "checkbox": fill_checkboxes,
     "dropdown": fill_dropdown,
     "matrix_radio": fill_matrix_radio,
     'multiple_choice': fill_checkboxes,

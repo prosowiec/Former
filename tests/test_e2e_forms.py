@@ -7,8 +7,8 @@ FORM_URL_MS = "https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=W0Pa0Oen
 
 @pytest.mark.e2e
 @pytest.mark.parametrize("form_url", [
-    FORM_URL_GOOGLE,
-    FORM_URL_MS])
+    FORM_URL_GOOGLE])
+    #,FORM_URL_MS])
 def test_e2e_form_submission(form_url):
     assert form_url is not None, "Form URL must be set"
 

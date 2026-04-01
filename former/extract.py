@@ -41,7 +41,7 @@ def extract_question_items(page, platform):
     if platform == "MS":
         question_items = page.query_selector_all("div[data-automation-id='questionItem']")
     else:  # GOOGLE
-        question_items = page.query_selector_all("div[role='listitem']")
+        question_items = page.query_selector_all("div[class='Qr7Oae']")
         
     return question_items
 

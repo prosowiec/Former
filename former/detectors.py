@@ -31,7 +31,7 @@ def detect_GOOGLE_question_type(q):
 
     # Checkboxes (non-matrix)
     if q.query_selector("div[role='checkbox']"):
-        return "multiple_choice"
+        return "checkbox"
 
     # Paragraph
     if q.query_selector("textarea"):

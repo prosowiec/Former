@@ -29,8 +29,11 @@ class testResponses(chatInterface):
                 answer = random.choice(options)
 
         elif qtype in ["checkbox", "multiple_checkbox"]:
-            answer = random.sample(options, random.randint(1, len(options)))
-
+            try:
+                answer = random.sample(options, random.randint(1, len(options)))
+            except:
+                answer = random.choice(options.get("options", []))
+                answer = [answer] if isinstance(answer, str) else answer
         elif qtype == "matrix_radio":
             answer = {}
             for row in options["options"]:
@@ -73,7 +76,7 @@ class testResponses(chatInterface):
             end = datetime(2026, 12, 31)
             d = start + timedelta(days=random.randint(0, (end - start).days))
             answer = d.strftime("%Y-%m-%d")
-
+            
         result = question.copy()
         result["ANSWERS"] = answer
         return result
