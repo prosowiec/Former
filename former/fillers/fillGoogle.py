@@ -12,12 +12,10 @@ def fill_linear_scale_radio(q, answer):
 def fill_checkboxes(q, answers):
     boxes = q.query_selector_all("div[data-value]")
     if not boxes:
-        boxes = q.query_selector_all("div[checkbox='checkbox']")
+        boxes = q.query_selector_all("div[aria-label]")
         
     for box in boxes:
-        text = box.get_attribute("data-value").strip()
-        if not text:
-            text = box.get_attribute("aria-label").strip()
+        text = box.get_attribute("aria-label").strip()
         
         if text in answers:
             time.sleep(random.uniform(0.2, 0.5))
