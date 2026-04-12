@@ -13,12 +13,16 @@ default_args = {
 }
 
 
-def run_google_form():
+def run_google_form(**context):
     from former.config import FORM_URL_GOOGLE, OPENAI_API_KEY
     from former.LLM_interface.ChatgptFormFiller import chatgptFormFiller
 
+    dag_run = context.get("dag_run")
+    conf = getattr(dag_run, "conf", {}) or {}
+    form_url = conf.get("form_url") or FORM_URL_GOOGLE
+
     filler = chatgptFormFiller(OPENAI_API_KEY)
-    run_form_pipeline(FORM_URL_GOOGLE, filler)
+    run_form_pipeline(form_url, filler)
 
 
 
