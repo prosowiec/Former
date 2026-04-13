@@ -1,9 +1,10 @@
 import os
 from typing import Dict, Optional
-
 import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, HttpUrl
+from fastapi.middleware.cors import CORSMiddleware
+
 
 AIRFLOW_HOST = os.getenv("AIRFLOW_HOST", "http://localhost:9090")
 AIRFLOW_BASE_URL = os.getenv("AIRFLOW_BASE_URL", f"{AIRFLOW_HOST}/api/v2")
@@ -16,6 +17,14 @@ app = FastAPI(
     description="Trigger the Airflow form filler DAG with a form URL.",
     version="0.1.0",
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 
 class AirflowTriggerRequest(BaseModel):
@@ -62,9 +71,7 @@ def build_dag_run_payload(form_url: str, run_id: Optional[str] = None) -> Dict:
     if run_id:
         payload["dag_run_id"] = run_id
 
-    # Airflow v2 API requires logical_date when creating dag runs.
-    if "/api/v2" in AIRFLOW_BASE_URL:
-        payload["logical_date"] = datetime.now(timezone.utc).isoformat()
+    payload["logical_date"] = datetime.now(timezone.utc).isoformat()
 
     return payload
 
