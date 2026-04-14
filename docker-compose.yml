@@ -67,7 +67,10 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       DISPLAY: ":99"
-    command: ["bash", "-c", "Xvfb :99 -screen 0 1920x1080x24 & airflow scheduler"]
+    command: >
+            bash -c "
+              xvfb-run -a --server-args='-screen 0 1920x1080x24' airflow scheduler
+            "
 
   airflow-dag-processor:
     build: .
@@ -89,7 +92,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     volumes:
-      - ./former:/app
+      - ./former:/app/former
     ports:
       - "8000:8000"
     environment:
