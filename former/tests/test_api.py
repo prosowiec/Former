@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from former.api import app
+from former.backend.api import app
 
 
 def test_airflow_trigger_endpoint(monkeypatch):

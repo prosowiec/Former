@@ -1,14 +1,14 @@
 from former.LLM_interface.ChatInterface import chatInterface
 from former.LLM_interface.Gemini import geminiFormFiller
 from former.LLM_interface.ChatgptFormFiller import chatgptFormFiller
-from former.browser import launch_browser
+from former.fillWorkflow.browser import launch_browser
 
-from former.detectors import detect_question_type, detect_platform
-from former.extract import extract_options, extract_title, extract_question_items
-from former.fill import fill_question
-from former.navigation import go_next_or_submit
-from former.human import human_pause, human_before_question
-import former.config as config
+from former.fillWorkflow.detectors import detect_question_type, detect_platform
+from former.fillWorkflow.extract import extract_options, extract_title, extract_question_items
+from former.fillWorkflow.fill import fill_question
+from former.fillWorkflow.navigation import go_next_or_submit
+from former.fillWorkflow.human import human_pause, human_before_question
+import former.fillWorkflow.config as config
 import json
 
 

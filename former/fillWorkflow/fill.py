@@ -1,5 +1,5 @@
-from former.fillers.fillGoogle import GOOGLE_FILLERS
-from former.fillers.fillMS import MS_FILLERS
+from former.fillWorkflow.fillers.fillGoogle import GOOGLE_FILLERS
+from former.fillWorkflow.fillers.fillMS import MS_FILLERS
 
 def fill_question(page, q, platform, qtype, answer):
     if platform == "GOOGLE":

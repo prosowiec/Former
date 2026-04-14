@@ -1,4 +1,3 @@
-
 x-airflow-env: &airflow-env
   AIRFLOW__CORE__EXECUTOR: LocalExecutor
   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
@@ -85,6 +84,41 @@ services:
       <<: *airflow-env
     command: ["airflow", "dag-processor"]
 
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    volumes:
+      - ./former:/app
+    ports:
+      - "8000:8000"
+    environment:
+      AIRFLOW_HOST: "http://airflow-api-server:8080"
+      AIRFLOW_BASE_URL: "http://airflow-api-server:8080/api/v2"
+      AIRFLOW_USERNAME: admin
+      AIRFLOW_PASSWORD: admin
+      AIRFLOW_DAG_ID: form_filler_pipeline
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    depends_on:
+      airflow-api-server:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./former/front
+      dockerfile: ../../Dockerfile.front
+    volumes:
+      - ./former/front:/app
+      - node_modules_front:/app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    depends_on:
+      - backend
+
 volumes:
   postgres-db-volume:
   airflow-logs:
+  node_modules_front:

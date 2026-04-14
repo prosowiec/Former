@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 
-from former.formFiller import run_form_pipeline
+from former.fillWorkflow.formFiller import run_form_pipeline
 
 
 default_args = {
@@ -14,7 +14,7 @@ default_args = {
 
 
 def run_google_form(**context):
-    from former.config import FORM_URL_GOOGLE, OPENAI_API_KEY
+    from former.fillWorkflow.config import FORM_URL_GOOGLE, OPENAI_API_KEY
     from former.LLM_interface.ChatgptFormFiller import chatgptFormFiller
 
     dag_run = context.get("dag_run")

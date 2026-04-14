@@ -1,6 +1,6 @@
 import random
 import time
-from former.human import human_type, human_pause
+from former.fillWorkflow.human import human_type, human_pause
 
 
 # ---------- TEXT ----------

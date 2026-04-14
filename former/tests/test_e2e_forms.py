@@ -1,6 +1,6 @@
 import pytest
-from former.formFiller import run_form_pipeline
-from TestResponses import testResponses
+from former.fillWorkflow.formFiller import run_form_pipeline
+from former.tests.TestResponses import testResponses
 
 FORM_URL_GOOGLE = "https://docs.google.com/forms/d/e/1FAIpQLSf6uyAWNw1p4NL-Q4Q4o5M4avpsQZ0or7iL4PLHraAXculZEw/viewform?usp=dialog"
 FORM_URL_MS = "https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=W0Pa0OendE2krvcs-POy23esuPnlaW5LjSJAQ8hH3ThUN0hQSTg1WDc2Qk1FWFZKRVFKVEg0RzBDOC4u" # - REAL FORM
