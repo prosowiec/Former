@@ -7,8 +7,13 @@ export default function TriggerForm({ setResult, setError }) {
   const [formUrl, setFormUrl] = useState("");
   const [dagId, setDagId] = useState(DEFAULT_DAG_ID);
   const [runId, setRunId] = useState("");
+  const [numExecutions, setNumExecutions] = useState(1);
+  const [baseInterval, setBaseInterval] = useState(60);
+  const [jitter, setJitter] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const isMultiple = numExecutions > 1;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -17,7 +22,13 @@ export default function TriggerForm({ setResult, setError }) {
     setLoading(true);
 
     try {
-      const payload = { form_url: formUrl, dag_id: dagId };
+      const payload = {
+        form_url: formUrl,
+        dag_id: dagId,
+        num_executions: numExecutions,
+        base_interval_minutes: baseInterval,
+        interval_jitter_minutes: jitter,
+      };
       if (runId.trim()) payload.run_id = runId.trim();
 
       const data = await api.trigger(payload);
@@ -44,6 +55,46 @@ export default function TriggerForm({ setResult, setError }) {
         />
       </div>
 
+      <div className="field">
+        <label htmlFor="num_executions">Number of executions</label>
+        <input
+          id="num_executions"
+          type="number"
+          min={1}
+          value={numExecutions}
+          onChange={(e) => setNumExecutions(Number(e.target.value))}
+        />
+      </div>
+
+      {isMultiple && (
+        <div className="field-row">
+          <div className="field">
+            <label htmlFor="base_interval">
+              Base interval <span className="optional">(minutes)</span>
+            </label>
+            <input
+              id="base_interval"
+              type="number"
+              min={0}
+              value={baseInterval}
+              onChange={(e) => setBaseInterval(Number(e.target.value))}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="jitter">
+              Jitter <span className="optional">(minutes)</span>
+            </label>
+            <input
+              id="jitter"
+              type="number"
+              min={0}
+              value={jitter}
+              onChange={(e) => setJitter(Number(e.target.value))}
+            />
+          </div>
+        </div>
+      )}
+
       <button
         type="button"
         className="advanced-toggle"
@@ -63,10 +114,9 @@ export default function TriggerForm({ setResult, setError }) {
               onChange={(e) => setDagId(e.target.value)}
             />
           </div>
-
           <div className="field">
             <label htmlFor="run_id">
-              Run ID <span className="optional">(optional)</span>
+              Run ID prefix <span className="optional">(optional)</span>
             </label>
             <input
               id="run_id"
@@ -80,7 +130,13 @@ export default function TriggerForm({ setResult, setError }) {
       )}
 
       <button className="submit-btn" type="submit" disabled={loading}>
-        {loading ? <span className="spinner" /> : "Trigger run"}
+        {loading ? (
+          <span className="spinner" />
+        ) : isMultiple ? (
+          `Trigger ${numExecutions} runs`
+        ) : (
+          "Trigger run"
+        )}
       </button>
     </form>
   );

@@ -29,14 +29,19 @@ def health_check() -> Dict[str, str]:
 
 @app.post("/airflow/trigger", response_model=AirflowTriggerResponse)
 def airflow_trigger(request: AirflowTriggerRequest) -> AirflowTriggerResponse:
-    
     try:
-        payload = trigger_airflow_dag(str(request.form_url), request.dag_id, request.run_id)
+        payload = trigger_airflow_dag(
+            str(request.form_url),
+            request.dag_id,
+            request.run_id,
+            request.num_executions,
+            request.base_interval_minutes,
+            request.interval_jitter_minutes,
+        )
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=exc.response.status_code, detail=f"Airflow API error: {exc.response.text}")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to call Airflow API: {exc}")
-    
 
     dag_run_id = payload.get("dag_run_id") or payload.get("dag_run", {}).get("dag_run_id", "")
     state = payload.get("state", "unknown")
@@ -45,5 +50,8 @@ def airflow_trigger(request: AirflowTriggerRequest) -> AirflowTriggerResponse:
         dag_id=request.dag_id,
         dag_run_id=dag_run_id,
         state=state,
+        num_executions=request.num_executions,
+        base_interval_minutes=request.base_interval_minutes,
+        interval_jitter_minutes=request.interval_jitter_minutes,
         airflow_response=payload,
     )

@@ -269,6 +269,49 @@ body {
   overflow-y: auto;
 }
 
+/* ── Field row (side-by-side) ────────────────────────────── */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ── Run list (multiple executions) ──────────────────────── */
+.run-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.run-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.run-row__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.run-row__index {
+  color: var(--muted);
+  font-size: 11px;
+  min-width: 24px;
+}
+
+.run-row__id {
+  flex: 1;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Health badge ────────────────────────────────────────── */
 .health-badge {
   display: flex;
