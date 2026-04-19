@@ -1,6 +1,6 @@
 from typing import Dict, Optional
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, constr
 
 from .config import DEFAULT_DAG_ID
 
@@ -22,3 +22,15 @@ class AirflowTriggerResponse(BaseModel):
     base_interval_minutes: float
     interval_jitter_minutes: float
     airflow_response: Dict
+
+
+class AuthLoginRequest(BaseModel):
+    email: str
+    password: constr(min_length=8, max_length=256)
+
+
+class AuthRegisterRequest(BaseModel):
+    email: str
+    password: constr(min_length=8, max_length=256)
+    name: str
+    surname: str

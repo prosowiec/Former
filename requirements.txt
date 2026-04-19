@@ -7,3 +7,5 @@ pytest
 fastapi
 uvicorn
 httpx
+passlib[argon2]>=1.7.4
+argon2-cffi>=23.1.0

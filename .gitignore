@@ -4,3 +4,4 @@ refrenceFiles/
 simple_auth_manager_passwords.json.generated
 former.egg-info
 former/front/node_modules
+auth_users.json

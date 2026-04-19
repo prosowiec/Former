@@ -21,6 +21,7 @@ def test_airflow_trigger_endpoint(monkeypatch):
         return {"dag_run_id": "test-run-id", "state": "queued"}
 
     monkeypatch.setattr("former.backend.api.trigger_airflow_dag", fake_trigger)
+    monkeypatch.setattr("former.backend.api.get_current_user", lambda request: {"email": "test@example.com"})
     client = TestClient(app)
 
     response = client.post(
@@ -52,6 +53,7 @@ def test_airflow_trigger_endpoint_multiple_runs(monkeypatch):
         return {"dag_run_id": "test-run-id", "state": "queued"}
 
     monkeypatch.setattr("former.backend.api.trigger_airflow_dag", fake_trigger)
+    monkeypatch.setattr("former.backend.api.get_current_user", lambda request: {"email": "test@example.com"})
     client = TestClient(app)
 
     response = client.post(

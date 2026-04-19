@@ -3,20 +3,25 @@ import { api } from "../api/client";
 
 const DEFAULT_DAG_ID = import.meta.env.VITE_DEFAULT_DAG_ID ?? "form_filler_pipeline";
 
-export default function TriggerForm({ setResult, setError }) {
+export default function TriggerForm({ setResult, setError, user }) {
   const [formUrl, setFormUrl] = useState("");
   const [dagId, setDagId] = useState(DEFAULT_DAG_ID);
   const [runId, setRunId] = useState("");
-  const [numExecutions, setNumExecutions] = useState(1);
-  const [baseInterval, setBaseInterval] = useState(60);
+  const [numExecutions, setNumExecutions] = useState(2);
+  const [baseInterval, setBaseInterval] = useState(2);
   const [jitter, setJitter] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const isMultiple = numExecutions > 1;
+  const isAuthenticated = Boolean(user);
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!isAuthenticated) {
+      setError("Please sign in with Google before triggering a DAG.");
+      return;
+    }
     setResult(null);
     setError(null);
     setLoading(true);
@@ -129,7 +134,7 @@ export default function TriggerForm({ setResult, setError }) {
         </div>
       )}
 
-      <button className="submit-btn" type="submit" disabled={loading}>
+      <button className="submit-btn" type="submit" disabled={loading || !isAuthenticated}>
         {loading ? (
           <span className="spinner" />
         ) : isMultiple ? (
@@ -138,6 +143,11 @@ export default function TriggerForm({ setResult, setError }) {
           "Trigger run"
         )}
       </button>
+      {!isAuthenticated && (
+        <div className="banner banner--info">
+          Please sign in with Google before triggering a DAG.
+        </div>
+      )}
     </form>
   );
 }

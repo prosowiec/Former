@@ -18,6 +18,3 @@ def test_e2e_form_submission(form_url):
     run_form_pipeline(form_url, filler)
 
     # If no exception → success
-    
-    
-test_e2e_form_submission(FORM_URL_GOOGLE)
