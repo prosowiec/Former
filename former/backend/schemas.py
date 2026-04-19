@@ -34,3 +34,24 @@ class AuthRegisterRequest(BaseModel):
     password: constr(min_length=8, max_length=256)
     name: str
     surname: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str
+
+
+class UserResponse(BaseModel):
+    email: str
+    name: Optional[str] = None
+    surname: Optional[str] = None
+
+
+class AuthLoginResponse(BaseModel):
+    user: UserResponse
+    tokens: TokenResponse
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str

@@ -84,7 +84,7 @@ export default function LoginPage({ onLogin, onGoogleLogin }) {
           </div>
 
           {isRegister && (
-            <div className="field-row">
+            <div className="login-fields">
               <div className="field">
                 <label htmlFor="name">First name</label>
                 <input

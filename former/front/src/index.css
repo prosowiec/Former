@@ -276,6 +276,13 @@ body {
   gap: 12px;
 }
 
+.login-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+
 /* ── Run list (multiple executions) ──────────────────────── */
 .run-list {
   display: flex;
