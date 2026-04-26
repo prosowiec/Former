@@ -19,11 +19,12 @@ services:
       POSTGRES_DB: airflow
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
       interval: 5s
       retries: 10
-
   airflow-init:
     build: .
     depends_on:
@@ -103,6 +104,15 @@ services:
       AIRFLOW_DAG_ID: form_filler_pipeline
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # MSSQL Database Configuration - connect to host's local MSSQL
+      DB_USER: ${DB_USER:-sa}
+      DB_PASSWORD: ${DB_PASSWORD:-YourPassword123!}
+      DB_HOST: ${DB_HOST:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_NAME: ${DB_NAME:-former}
+      DATABASE_URL: mssql+pyodbc://${DB_USER:-sa}:${DB_PASSWORD:-YourPassword123!}@${DB_HOST:-host.docker.internal}:${DB_PORT:-1433}/${DB_NAME:-former}?driver=ODBC+Driver+17+for+SQL+Server
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       airflow-api-server:
         condition: service_started

@@ -20,7 +20,8 @@ from .schemas import (
     UserResponse,
     RefreshTokenRequest,
 )
-from .users import authenticate_user, create_user, get_user
+from .users import authenticate_user, create_user, get_user, get_or_create_oauth_user
+from .db import get_db, init_db
 from datetime import datetime, timedelta
 
 app = FastAPI(
@@ -43,6 +44,16 @@ app.add_middleware(
     same_site="lax",
     https_only=False,
 )
+
+
+@app.on_event("startup")
+def startup_event():
+    """Initialize database on startup."""
+    try:
+        init_db()
+        print("✓ Database initialized successfully")
+    except Exception as e:
+        print(f"✗ Failed to initialize database: {e}")
 
 
 def get_current_user(request: Request):
@@ -117,7 +128,14 @@ def auth_callback(request: Request):
     if request.session.get("oauth_state") != state:
         raise HTTPException(status_code=400, detail="Invalid OAuth state")
 
-    user = get_google_user_from_code(code)
+    google_user_info = get_google_user_from_code(code)
+    
+    # Get or create user in database from Google OAuth
+    user = get_or_create_oauth_user(
+        email=google_user_info["email"],
+        name=google_user_info.get("name"),
+        google_id=google_user_info.get("sub")
+    )
     
     # Create token pair for Google OAuth user
     tokens = create_token_pair(user["email"], user.get("name"))

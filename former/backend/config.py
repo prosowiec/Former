@@ -24,3 +24,19 @@ AUTH_USERS_FILE = os.getenv("AUTH_USERS_FILE", os.path.join(os.path.dirname(__fi
 DEFAULT_AUTH_USERNAME = os.getenv("DEFAULT_AUTH_USERNAME", "")
 DEFAULT_AUTH_PASSWORD = os.getenv("DEFAULT_AUTH_PASSWORD", "")
 
+# MSSQL Database Configuration
+DB_USER = os.getenv("DB_USER", "sa")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "YourPassword123!")
+DB_HOST = os.getenv("DB_HOST", "host.docker.internal")
+DB_PORT = os.getenv("DB_PORT", "1433")
+DB_NAME = os.getenv("DB_NAME", "former")
+
+# Database URL for SQLAlchemy (MSSQL)
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    f"mssql+pyodbc://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?driver=ODBC+Driver+17+for+SQL+Server"
+)
+
+# SQLAlchemy settings
+SQLALCHEMY_ECHO = os.getenv("SQLALCHEMY_ECHO", "False").lower() == "true"
+
