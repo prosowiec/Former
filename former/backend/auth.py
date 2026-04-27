@@ -76,7 +76,8 @@ def get_google_user_from_code(code: str) -> dict:
     profile = fetch_google_userinfo(access_token)
     return {
         "email": profile.get("email"),
-        "name": profile.get("name"),
+        "name": profile.get("given_name"),
+        "surname": profile.get("family_name"),
         "picture": profile.get("picture"),
         "sub": profile.get("sub"),
     }

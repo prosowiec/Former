@@ -1,13 +1,14 @@
 import secrets
-from typing import Dict, Optional
+from typing import Annotated, Dict, Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.sessions import SessionMiddleware
 
-from .auth import build_google_login_url, get_google_user_from_code, create_token_pair, verify_token
+from .auth import build_google_login_url, get_google_user_from_code, create_token_pair, verify_token, create_access_token
 from .config import FRONTEND_URL, SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES
 from .dagOperations import trigger_airflow_dag
 from .schemas import (
@@ -23,6 +24,58 @@ from .schemas import (
 from .users import authenticate_user, create_user, get_user, get_or_create_oauth_user
 from .db import get_db, init_db
 from datetime import datetime, timedelta
+
+# Security scheme for bearer token
+security = HTTPBearer(auto_error=False)
+
+
+async def get_current_user(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)]
+) -> Dict:
+    """Dependency to get current user from JWT token in Authorization header."""
+    
+    print("ALL INFO" , credentials)
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    try:
+        payload = verify_token(credentials.credentials)
+        if payload.get("type") == "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type: expected access token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        email = payload.get("sub")
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token: missing subject",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        user = get_user(email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        return user
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 app = FastAPI(
     title="Former Airflow Trigger API",
@@ -56,17 +109,13 @@ def startup_event():
         print(f"✗ Failed to initialize database: {e}")
 
 
-def get_current_user(request: Request):
-    return request.session.get("user")
-
-
 @app.get("/health")
 def health_check() -> Dict[str, str]:
     return {"status": "ok"}
 
 
 @app.post("/auth/login", response_model=AuthLoginResponse)
-def auth_login(request: Request, credentials: AuthLoginRequest):
+def auth_login(credentials: AuthLoginRequest):
     user = authenticate_user(credentials.email, credentials.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -74,21 +123,33 @@ def auth_login(request: Request, credentials: AuthLoginRequest):
     # Create token pair
     tokens = create_token_pair(user["email"], user.get("name"), user.get("surname"))
     
-    # Store in session
-    request.session["user"] = user
-    request.session["access_token"] = tokens["access_token"]
-    request.session["refresh_token"] = tokens["refresh_token"]
-    request.session["token_expires_at"] = (datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)).isoformat()
-    request.session["last_activity"] = datetime.utcnow().isoformat()
-    
     return AuthLoginResponse(
         user=UserResponse(**user),
         tokens=TokenResponse(**tokens)
     )
 
+@app.get("/auth/tokens")
+def auth_tokens(request: Request):
+    """Exchange httpOnly OAuth cookies for tokens the frontend can store."""
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    
+    if not access_token or not refresh_token:
+        raise HTTPException(status_code=401, detail="No tokens found")
+    
+    response = JSONResponse({
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+    })
+    # Clear the httpOnly cookies — frontend takes over storage from here
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
+    return response
+
 
 @app.post("/auth/register", response_model=AuthLoginResponse)
-def auth_register(request: Request, credentials: AuthRegisterRequest):
+def auth_register(credentials: AuthRegisterRequest):
+    print(f"Attempting to register user: {credentials.email}")
     if get_user(credentials.email):
         raise HTTPException(status_code=400, detail="User already exists")
 
@@ -96,13 +157,6 @@ def auth_register(request: Request, credentials: AuthRegisterRequest):
     
     # Create token pair
     tokens = create_token_pair(user["email"], user.get("name"), user.get("surname"))
-    
-    # Store in session
-    request.session["user"] = user
-    request.session["access_token"] = tokens["access_token"]
-    request.session["refresh_token"] = tokens["refresh_token"]
-    request.session["token_expires_at"] = (datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)).isoformat()
-    request.session["last_activity"] = datetime.utcnow().isoformat()
     
     return AuthLoginResponse(
         user=UserResponse(**user),
@@ -113,45 +167,48 @@ def auth_register(request: Request, credentials: AuthRegisterRequest):
 @app.get("/auth/google")
 def auth_google_login(request: Request):
     state = secrets.token_urlsafe(16)
-    request.session["oauth_state"] = state
-    return RedirectResponse(url=build_google_login_url(state))
+    request.session["oauth_state"] = state  # store in session, not a separate cookie
+    google_login_url = build_google_login_url(state)
+    return RedirectResponse(url=google_login_url)
 
 
 @app.get("/auth/callback")
 def auth_callback(request: Request):
+    print("ALL COOKIES:", dict(request.cookies))
+
     state = request.query_params.get("state")
     code = request.query_params.get("code")
+    stored_state = request.session.get("oauth_state")  # read from session
 
     if not state or not code:
         raise HTTPException(status_code=400, detail="Missing OAuth callback parameters")
 
-    if request.session.get("oauth_state") != state:
-        raise HTTPException(status_code=400, detail="Invalid OAuth state")
+    if not stored_state or state != stored_state:
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
+
+    # Consume the state
+    del request.session["oauth_state"]
 
     google_user_info = get_google_user_from_code(code)
-    
-    # Get or create user in database from Google OAuth
     user = get_or_create_oauth_user(
         email=google_user_info["email"],
         name=google_user_info.get("name"),
+        surname=google_user_info.get("surname"),
         google_id=google_user_info.get("sub")
     )
-    
-    # Create token pair for Google OAuth user
-    tokens = create_token_pair(user["email"], user.get("name"))
-    
-    request.session["user"] = user
-    request.session["access_token"] = tokens["access_token"]
-    request.session["refresh_token"] = tokens["refresh_token"]
-    request.session["token_expires_at"] = (datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)).isoformat()
-    request.session["last_activity"] = datetime.utcnow().isoformat()
-    request.session.pop("oauth_state", None)
 
-    return RedirectResponse(url=f"{FRONTEND_URL}/?login=success")
+    tokens = create_token_pair(user["email"], user.get("name"), user.get("surname"))
 
+    response = RedirectResponse(url=f"{FRONTEND_URL}/oauth-success")
+    response.set_cookie(key="access_token", value=tokens["access_token"],
+                        httponly=True, secure=False, samesite="lax")
+    response.set_cookie(key="refresh_token", value=tokens["refresh_token"],
+                        httponly=True, secure=False, samesite="lax")
+
+    return response
 
 @app.post("/auth/refresh", response_model=TokenResponse)
-def auth_refresh(request: Request, refresh_data: RefreshTokenRequest):
+def auth_refresh(refresh_data: RefreshTokenRequest):
     """Refresh access token using refresh token."""
     try:
         payload = verify_token(refresh_data.refresh_token)
@@ -166,12 +223,6 @@ def auth_refresh(request: Request, refresh_data: RefreshTokenRequest):
         # Create new token pair
         tokens = create_token_pair(user["email"], user.get("name"), user.get("surname"))
         
-        # Update session
-        request.session["access_token"] = tokens["access_token"]
-        request.session["refresh_token"] = tokens["refresh_token"]
-        request.session["token_expires_at"] = (datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)).isoformat()
-        request.session["last_activity"] = datetime.utcnow().isoformat()
-        
         return TokenResponse(**tokens)
     except HTTPException:
         raise
@@ -180,48 +231,26 @@ def auth_refresh(request: Request, refresh_data: RefreshTokenRequest):
 
 
 @app.get("/auth/me")
-def auth_me(request: Request):
-    """Get current user with auto-refresh logic."""
-    user = get_current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    # Check if token needs refresh
-    token_expires_at_str = request.session.get("token_expires_at")
-    if token_expires_at_str:
-        token_expires_at = datetime.fromisoformat(token_expires_at_str)
-        # Refresh if token expires in less than 5 minutes
-        if datetime.utcnow() > token_expires_at - timedelta(minutes=5):
-            try:
-                refresh_token = request.session.get("refresh_token")
-                if refresh_token:
-                    payload = verify_token(refresh_token)
-                    if payload.get("type") == "refresh":
-                        tokens = create_token_pair(user["email"], user.get("name"), user.get("surname"))
-                        request.session["access_token"] = tokens["access_token"]
-                        request.session["refresh_token"] = tokens["refresh_token"]
-                        request.session["token_expires_at"] = (datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)).isoformat()
-            except:
-                pass  # If refresh fails, continue with existing token
-    
-    # Update last activity
-    request.session["last_activity"] = datetime.utcnow().isoformat()
-    
-    return JSONResponse({"user": user, "access_token": request.session.get("access_token")})
+def auth_me(current_user: Annotated[Dict, Depends(get_current_user)]):
+    """Get current authenticated user."""
+    return JSONResponse({"user": current_user})
 
 
 @app.post("/auth/logout")
-def auth_logout(request: Request):
-    request.session.clear()
+def auth_logout():
+    """Logout endpoint - client should discard tokens."""
+    # Since we're using JWT tokens (stateless), logout is handled client-side
+    # by removing tokens from storage. Server-side token invalidation would
+    # require a token blacklist, which adds complexity.
     return JSONResponse({"detail": "Logged out"})
 
 
 @app.post("/airflow/trigger", response_model=AirflowTriggerResponse)
-def airflow_trigger(request: Request, payload: AirflowTriggerRequest) -> AirflowTriggerResponse:
-    current_user = get_current_user(request)
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Authentication required")
-
+def airflow_trigger(
+    payload: AirflowTriggerRequest,
+    current_user: Annotated[Dict, Depends(get_current_user)]
+) -> AirflowTriggerResponse:
+    """Trigger an Airflow DAG. Requires JWT authentication."""
     try:
         response_payload = trigger_airflow_dag(
             str(payload.form_url),

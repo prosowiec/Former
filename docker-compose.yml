@@ -116,7 +116,8 @@ services:
     depends_on:
       airflow-api-server:
         condition: service_started
-
+    env_file:
+      - .env
   frontend:
     build:
       context: ./former/front

@@ -1,3 +1,5 @@
+from http.client import HTTPException
+from fastapi import HTTPException
 from typing import Optional, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -87,11 +89,6 @@ def create_user(
         close_db = False
     
     try:
-        # Check if user already exists
-        existing_user = db.query(User).filter(User.email == email).first()
-        if existing_user:
-            raise ValueError("User already exists")
-        
         new_user = User(
             email=email,
             password_hash=hash_password(password),
@@ -99,10 +96,11 @@ def create_user(
             surname=surname,
             username=username or email,
         )
+
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        
+                
         return {
             "id": str(new_user.id),
             "email": new_user.email,
@@ -110,18 +108,19 @@ def create_user(
             "surname": new_user.surname,
             "username": new_user.username,
         }
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise ValueError("User already exists")
-    finally:
-        if close_db:
-            db.close()
+        print("ERROR:", e)
 
+        raise HTTPException(
+            status_code=400,
+            detail="User with this email or username already exists"
+        )
 
 def get_or_create_oauth_user(
     email: str,
     name: str = None,
-    picture: str = None,
+    surname: str = None,
     google_id: str = None,
     db: Optional[Session] = None
 ) -> Dict:
@@ -154,6 +153,7 @@ def get_or_create_oauth_user(
         new_user = User(
             email=email,
             name=name,
+            surname=surname,
             google_id=google_id,
             username=email,
         )

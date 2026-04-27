@@ -3,6 +3,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value or not value.strip():
+        raise RuntimeError(f"Missing environment variable: {name}")
+    return value.strip()
+
+
 AIRFLOW_HOST = os.getenv("AIRFLOW_HOST", "http://localhost:9090")
 AIRFLOW_BASE_URL = os.getenv("AIRFLOW_BASE_URL", f"{AIRFLOW_HOST}/api/v2")
 AIRFLOW_USERNAME = os.getenv("AIRFLOW_USERNAME", "admin")
@@ -15,9 +23,9 @@ JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))  # 1 hour
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", 7))  # 7 days
 
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8000/auth/callback")
+GOOGLE_CLIENT_ID = require_env("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = require_env("GOOGLE_CLIENT_SECRET")
+GOOGLE_OAUTH_REDIRECT_URI = require_env("GOOGLE_OAUTH_REDIRECT_URI")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 AUTH_USERS_FILE = os.getenv("AUTH_USERS_FILE", os.path.join(os.path.dirname(__file__), "auth_users.json"))

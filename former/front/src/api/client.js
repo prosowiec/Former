@@ -16,10 +16,12 @@ export function getAccessToken() {
 }
 
 export function clearTokens() {
+  console.log("Clearing tokens...");
   accessToken = null;
   refreshToken = null;
   localStorage.removeItem("access_token");
   localStorage.removeItem("refresh_token");
+  console.log("Tokens cleared. access_token in localStorage:", localStorage.getItem("access_token"));
 }
 
 async function refreshAccessToken() {
@@ -127,8 +129,20 @@ export const api = {
   // Auth
   me: () => request("/auth/me"),
   logout: async () => {
-    clearTokens();
-    return request("/auth/logout", { method: "POST" });
+    console.log("Logging out...");
+    // Simple fetch without the complex request wrapper to avoid token refresh logic
+    try {
+      await fetch(`${BASE_URL}/auth/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+    } catch (e) {
+      console.log("Logout API call failed:", e.message);
+    } finally {
+      clearTokens();
+      console.log("Logout complete");
+    }
   },
   loginUrl: () => `${BASE_URL}/auth/google`,
   loginUser: async (credentials) => {
@@ -151,7 +165,6 @@ export const api = {
     }
     return response;
   },
-
   // DAG
   trigger: (payload) =>
     request("/airflow/trigger", {

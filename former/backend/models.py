@@ -18,7 +18,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=True)  # None if using OAuth
     name = Column(String(255), nullable=True)
     surname = Column(String(255), nullable=True)
-    google_id = Column(String(255), unique=True, nullable=True)  # Google OAuth ID
+    google_id = Column(String(255), nullable=True)  # G
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
