@@ -30,50 +30,54 @@ from .db import get_db, init_db
 security = HTTPBearer(auto_error=False)
 
 
-def _unauthorized(detail: str) -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail=detail,
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
-    db: Annotated[Session, Depends(get_db)],
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    db: Session = Depends(get_db)
 ) -> Dict:
-    """Extract and validate current user from JWT access token."""
-
+    """Dependency to get current user from JWT token in Authorization header."""
+    
+    print("ALL INFO" , credentials)
     if not credentials:
-        raise _unauthorized("Not authenticated")
-
-    payload = _decode_access_token(credentials.credentials)
-
-    email = payload.get("sub")
-    if not email:
-        raise _unauthorized("Invalid token: missing subject")
-
-    user = get_user(email, db)
-    if not user:
-        raise _unauthorized("User not found")
-
-    return user
-
-
-def _decode_access_token(token: str) -> Dict:
-    """Decode and validate access token."""
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     try:
-        payload = verify_token(token)
-
-        if payload.get("type") != "access":
-            raise _unauthorized("Invalid token type")
-
-        return payload
-
+        payload = verify_token(credentials.credentials)
+        if payload.get("type") == "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type: expected access token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        email = payload.get("sub")
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token: missing subject",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        user = get_user(email, db)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        return user
     except HTTPException:
         raise
     except Exception:
-        raise _unauthorized("Could not validate credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 app = FastAPI(
     title="Former Airflow Trigger API",
