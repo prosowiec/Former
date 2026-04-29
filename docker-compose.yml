@@ -51,6 +51,9 @@ services:
       <<: *airflow-env
       AIRFLOW__API__SECRET_KEY: "another_long_secret_for_ui_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     command: ["airflow", "api-server"]
+    env_file:
+      - .env
+
 
   airflow-scheduler:
     build: .
@@ -72,6 +75,9 @@ services:
             bash -c "
               xvfb-run -a --server-args='-screen 0 1920x1080x24' airflow scheduler
             "
+    env_file:
+      - .env
+
 
   airflow-dag-processor:
     build: .
@@ -99,8 +105,6 @@ services:
     environment:
       AIRFLOW_HOST: "http://airflow-api-server:8080"
       AIRFLOW_BASE_URL: "http://airflow-api-server:8080/api/v2"
-      AIRFLOW_USERNAME: admin
-      AIRFLOW_PASSWORD: admin
       AIRFLOW_DAG_ID: form_filler_pipeline
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
@@ -110,7 +114,7 @@ services:
       DB_HOST: ${DB_HOST:-host.docker.internal}
       DB_PORT: ${DB_PORT:-1433}
       DB_NAME: ${DB_NAME:-former}
-      DATABASE_URL: mssql+pyodbc://${DB_USER:-sa}:${DB_PASSWORD:-YourPassword123!}@${DB_HOST:-host.docker.internal}:${DB_PORT:-1433}/${DB_NAME:-former}?driver=ODBC+Driver+17+for+SQL+Server
+      AIRFLOW_CONN_MSSQL_DEFAULT: ${DATABASE_URL}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

@@ -13,7 +13,6 @@ class AirflowTriggerRequest(BaseModel):
     base_interval_minutes: float = Field(10.0, ge=0.1)
     interval_jitter_minutes: float = Field(2.0, ge=0.0)
 
-
 class AirflowTriggerResponse(BaseModel):
     dag_id: str
     dag_run_id: str

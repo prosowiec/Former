@@ -241,12 +241,10 @@ def auth_me(current_user: Annotated[Dict, Depends(get_current_user)]):
 
 @app.post("/auth/logout")
 def auth_logout():
-    """Logout endpoint - client should discard tokens."""
-    # Since we're using JWT tokens (stateless), logout is handled client-side
-    # by removing tokens from storage. Server-side token invalidation would
-    # require a token blacklist, which adds complexity.
-    return JSONResponse({"detail": "Logged out"})
-
+    response = JSONResponse({"detail": "Logged out"})
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
+    return response
 
 @app.post("/airflow/trigger", response_model=AirflowTriggerResponse)
 def airflow_trigger(
@@ -254,6 +252,19 @@ def airflow_trigger(
     current_user: Annotated[Dict, Depends(get_current_user)]
 ) -> AirflowTriggerResponse:
     """Trigger an Airflow DAG. Requires JWT authentication."""
+    
+    # print(f"User {current_user['email']} is triggering DAG {payload.dag_id} with form URL: {payload.form_url}")
+    # print(f"Payload: {payload}")
+    # return AirflowTriggerResponse(
+    #     dag_id=payload.dag_id,
+    #     dag_run_id="111111",
+    #     state="success",
+    #     num_executions=payload.num_executions,
+    #     base_interval_minutes=payload.base_interval_minutes,
+    #     interval_jitter_minutes=payload.interval_jitter_minutes,
+    #     airflow_response={"mock": "response"},
+    # )
+
     try:
         response_payload = trigger_airflow_dag(
             str(payload.form_url),

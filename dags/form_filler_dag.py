@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.decorators import task
 from datetime import datetime, timedelta
 import random
-
+from airflow.providers.microsoft.mssql.hooks.mssql import MsSqlHook
 
 default_args = {
     "owner": "you",
@@ -59,9 +59,33 @@ with DAG(
             })
 
         return plan
+    
+    @task
+    def log_execution(conf):
+        from former.backend.models import AirflowProgress
+        from sqlalchemy.orm import sessionmaker
+        hook = MsSqlHook(mssql_conn_id="mssql_default")
+        engine = hook.get_sqlalchemy_engine()
 
+        Session = sessionmaker(bind=engine)
+        session = Session()
 
-    # 3. Execute single run
+        execution : AirflowProgress = session.query(AirflowProgress).filter_by(dag_id=dag.dag_id).first()
+        if execution:
+            execution.numberOfSuccessfulRuns += 1
+            session.add(execution)
+        else:
+            execution = AirflowProgress(
+                dag_id=dag.dag_id,
+                numberOfSuccessfulRuns=1,
+                hasFailedRuns=False,
+                expectedTotalRuns=conf["num_executions"]
+            )
+            session.add(execution)
+            
+        session.commit()
+        session.close()
+
     @task
     def run_single_execution(form_url: str, delay_minutes: float):
         import time
@@ -82,4 +106,7 @@ with DAG(
 
     execution_plan = build_execution_plan(conf)
 
-    run_single_execution.expand_kwargs(execution_plan)
+    executions = run_single_execution.expand_kwargs(execution_plan)
+    logs = log_execution(conf)
+
+    executions >> logs
