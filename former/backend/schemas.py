@@ -52,5 +52,17 @@ class AuthLoginResponse(BaseModel):
     tokens: TokenResponse
 
 
+class AirflowRunResponse(BaseModel):
+    dag_id: str
+    dag_run_id: str
+    form_url: HttpUrl
+    num_executions: int
+    base_interval_minutes: float
+    interval_jitter_minutes: float
+    created_at: str
+    state: str
+    progress: Optional[Dict] = None
+
+
 class RefreshTokenRequest(BaseModel):
     refresh_token: str

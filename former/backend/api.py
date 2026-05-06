@@ -1,4 +1,6 @@
+import hashlib
 import secrets
+from datetime import datetime
 from typing import Annotated, Dict, Optional
 
 import httpx
@@ -9,11 +11,14 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
 
+from former.backend.models import AirflowProgress, AirflowTriggerInternalRequest
+
 
 from .auth import build_google_login_url, get_google_user_from_code, create_token_pair, verify_token, create_access_token
 from .config import FRONTEND_URL, SECRET_KEY
 from .dagOperations import trigger_airflow_dag
 from .schemas import (
+    AirflowRunResponse,
     AirflowTriggerRequest,
     AirflowTriggerResponse,
     AuthLoginRequest,
@@ -246,34 +251,106 @@ def auth_logout():
     response.delete_cookie("refresh_token")
     return response
 
+def get_progress_state(progress: AirflowProgress) -> str:
+    if not progress:
+        return "queued"
+    if progress.hasFailedRuns:
+        return "failed"
+    if progress.numberOfSuccessfulRuns >= progress.expectedTotalRuns:
+        return "success"
+    if progress.numberOfSuccessfulRuns > 0:
+        return "running"
+    return "queued"
+
+
+def build_run_id(base_run_id: Optional[str], user_id: str, max_length: int = 255) -> str:
+    if base_run_id:
+        candidate = f"{base_run_id}_{user_id}"
+    else:
+        candidate = f"former_run_{secrets.token_hex(8)}"
+
+    if len(candidate) <= max_length:
+        return candidate
+
+    digest = hashlib.sha1(candidate.encode("utf-8")).hexdigest()[:16]
+    prefix_length = max_length - len(digest) - 1
+    return f"{candidate[:prefix_length]}_{digest}"
+
+
+@app.get("/airflow/runs", response_model=list[AirflowRunResponse])
+def list_airflow_runs(
+    current_user: Annotated[Dict, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    """Return all DAG runs triggered by the current user."""
+    runs = (
+        db.query(AirflowTriggerInternalRequest)
+        .filter_by(user_email=current_user["email"])
+        .order_by(AirflowTriggerInternalRequest.created_at.desc())
+        .all()
+    )
+
+    run_ids = [run.run_id for run in runs]
+    progress_by_run = {}
+    if run_ids:
+        progress_rows = db.query(AirflowProgress).filter(AirflowProgress.run_id.in_(run_ids)).all()
+        progress_by_run = {row.run_id: row for row in progress_rows}
+
+    result = []
+    for run in runs:
+        progress = progress_by_run.get(run.run_id)
+        result.append(
+            {
+                "dag_id": run.dag_id,
+                "dag_run_id": run.run_id,
+                "form_url": run.form_url,
+                "num_executions": run.num_executions,
+                "base_interval_minutes": run.base_interval_minutes,
+                "interval_jitter_minutes": run.interval_jitter_minutes,
+                "created_at": run.created_at.isoformat() if run.created_at else datetime.utcnow().isoformat(),
+                "state": get_progress_state(progress),
+                "progress": {
+                    "numberOfSuccessfulRuns": progress.numberOfSuccessfulRuns,
+                    "hasFailedRuns": progress.hasFailedRuns,
+                    "expectedTotalRuns": progress.expectedTotalRuns,
+                }
+                if progress
+                else None,
+            }
+        )
+
+    return result
+
+
 @app.post("/airflow/trigger", response_model=AirflowTriggerResponse)
 def airflow_trigger(
     payload: AirflowTriggerRequest,
-    current_user: Annotated[Dict, Depends(get_current_user)]
+    current_user: Annotated[Dict, Depends(get_current_user)],
+    db: Session = Depends(get_db)
 ) -> AirflowTriggerResponse:
     """Trigger an Airflow DAG. Requires JWT authentication."""
     
-    # print(f"User {current_user['email']} is triggering DAG {payload.dag_id} with form URL: {payload.form_url}")
-    # print(f"Payload: {payload}")
-    # return AirflowTriggerResponse(
-    #     dag_id=payload.dag_id,
-    #     dag_run_id="111111",
-    #     state="success",
-    #     num_executions=payload.num_executions,
-    #     base_interval_minutes=payload.base_interval_minutes,
-    #     interval_jitter_minutes=payload.interval_jitter_minutes,
-    #     airflow_response={"mock": "response"},
-    # )
-
     try:
+        dag_run_id = build_run_id(payload.run_id, current_user["id"])
         response_payload = trigger_airflow_dag(
             str(payload.form_url),
             payload.dag_id,
-            payload.run_id,
+            dag_run_id,
             payload.num_executions,
             payload.base_interval_minutes,
             payload.interval_jitter_minutes,
         )
+
+        db.add(AirflowTriggerInternalRequest(
+            user_email=current_user["email"],
+            form_url=str(payload.form_url),
+            dag_id=payload.dag_id,
+            run_id=dag_run_id,
+            num_executions=payload.num_executions,
+            base_interval_minutes=payload.base_interval_minutes,
+            interval_jitter_minutes=payload.interval_jitter_minutes,
+        ))
+        db.commit()
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=exc.response.status_code, detail=f"Airflow API error: {exc.response.text}")
     except Exception as exc:

@@ -172,5 +172,5 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-    getRuns: () => Promise.resolve([]),
+  getRuns: () => request("/airflow/runs"),
 };

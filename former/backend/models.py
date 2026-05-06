@@ -37,15 +37,16 @@ class AirflowTriggerInternalRequest(Base):
     num_executions = Column(Integer, nullable=False)
     base_interval_minutes = Column(Float, nullable=False)
     interval_jitter_minutes = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 class AirflowProgress(Base):
     """Model to track Airflow DAG run progress."""
     
     __tablename__ = "airflow_progress"
-    dag_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    run_id = Column(String(255), primary_key=True)
     numberOfSuccessfulRuns = Column(Integer, default=0, nullable=False)
     hasFailedRuns = Column(Boolean, default=False, nullable=False)
     expectedTotalRuns = Column(Integer, nullable=False)
     
     def __repr__(self):
-        return f"<AirflowProgress(id={self.id}, user_email={self.user_email}, dag_id={self.dag_id}, dag_run_id={self.dag_run_id})>"
+        return f"<AirflowProgress(run_id={self.run_id}, numberOfSuccessfulRuns={self.numberOfSuccessfulRuns}, hasFailedRuns={self.hasFailedRuns}, expectedTotalRuns={self.expectedTotalRuns})>"
