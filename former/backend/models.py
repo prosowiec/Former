@@ -34,9 +34,15 @@ class AirflowTriggerInternalRequest(Base):
     form_url = Column(String(2048), nullable=False)
     dag_id = Column(String(255), nullable=False)
     run_id = Column(String(255), nullable=False)
+    run_name = Column(String(255), nullable=True)
     num_executions = Column(Integer, nullable=False)
     base_interval_minutes = Column(Float, nullable=False)
     interval_jitter_minutes = Column(Float, nullable=False)
+    age_profile = Column(String(50), nullable=True)
+    political_leaning = Column(String(50), nullable=True)
+    risk_tolerance = Column(String(50), nullable=True)
+    verbosity = Column(String(50), nullable=True)
+    formality = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 class AirflowProgress(Base):

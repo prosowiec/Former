@@ -158,6 +158,7 @@ export default function TriggerForm({ onSuccess }) {
       const payload = {
         form_url: formUrl,
         dag_id: DEFAULT_DAG_ID,
+        run_name : runName,
         run_id: randomRunId(runName),
         num_executions: numExecutions,
         base_interval_minutes: baseInterval,

@@ -7,11 +7,13 @@ from .config import DEFAULT_DAG_ID
 
 class AirflowTriggerRequest(BaseModel):
     form_url: HttpUrl
+    run_name : str = None
     dag_id: Optional[str] = DEFAULT_DAG_ID
     run_id: Optional[str] = None
     num_executions: int = Field(1, ge=1)
     base_interval_minutes: float = Field(10.0, ge=0.1)
     interval_jitter_minutes: float = Field(2.0, ge=0.0)
+    conf_personality: Optional[Dict[str, str]] = None
 
 class AirflowTriggerResponse(BaseModel):
     dag_id: str
@@ -62,6 +64,12 @@ class AirflowRunResponse(BaseModel):
     created_at: str
     state: str
     progress: Optional[Dict] = None
+    run_name: str
+    age_profile: Optional[str] = None
+    political_leaning: Optional[str] = None
+    risk_tolerance: Optional[str] = None
+    verbosity: Optional[str] = None
+    formality: Optional[str] = None
 
 
 class RefreshTokenRequest(BaseModel):
