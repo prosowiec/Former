@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api/client";
 
-const DEFAULT_DAG_ID = import.meta.env.VITE_DEFAULT_DAG_ID ?? "form_filler_pipeline";
+const DEFAULT_DAG_ID = import.meta.env.VITE_DEFAULT_DAG_ID ?? "form_filler_plan";
 
 const AXES = [
   {

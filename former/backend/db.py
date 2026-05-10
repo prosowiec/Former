@@ -33,5 +33,5 @@ def get_db() -> Session:
 
 
 def init_db():
-    """Initialize database tables."""
+    from former.backend import models
     Base.metadata.create_all(bind=engine)

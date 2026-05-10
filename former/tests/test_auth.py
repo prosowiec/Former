@@ -63,7 +63,7 @@ def test_airflow_trigger_requires_authentication():
         "/airflow/trigger",
         json={
             "form_url": "https://example.com/form",
-            "dag_id": "form_filler_pipeline",
+            "dag_id": "form_filler_plan",
         },
     )
 

@@ -60,7 +60,7 @@ def test_airflow_trigger_endpoint_multiple_runs(monkeypatch):
         "/airflow/trigger",
         json={
             "form_url": "https://example.com/form",
-            "dag_id": "form_filler_pipeline",
+            "dag_id": "form_filler_plan",
             "num_executions": 3,
             "base_interval_minutes": 10,
             "interval_jitter_minutes": 1,
@@ -69,7 +69,7 @@ def test_airflow_trigger_endpoint_multiple_runs(monkeypatch):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["dag_id"] == "form_filler_pipeline"
+    assert payload["dag_id"] == "form_filler_plan"
     assert payload["num_executions"] == 3
     assert payload["base_interval_minutes"] == 10
     assert payload["interval_jitter_minutes"] == 1

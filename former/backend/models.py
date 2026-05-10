@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from pydantic import HttpUrl
-from sqlalchemy import Column, Float, Integer, String, DateTime, Boolean
+from sqlalchemy import Column, Float, Integer, String, DateTime, Boolean, Text, JSON, UniqueConstraint
 import uuid
 
 from .db import Base
@@ -56,3 +56,36 @@ class AirflowProgress(Base):
     
     def __repr__(self):
         return f"<AirflowProgress(run_id={self.run_id}, numberOfSuccessfulRuns={self.numberOfSuccessfulRuns}, hasFailedRuns={self.hasFailedRuns}, expectedTotalRuns={self.expectedTotalRuns})>"
+
+
+class FormPageAnswersCache(Base):
+    __tablename__ = "form_page_answers_cache"
+
+    id         = Column(Integer, primary_key=True)
+    form_url   = Column(String(2048), nullable=False)
+    page_index = Column(Integer, nullable=False)
+    questions  = Column(JSON, nullable=False)
+    answers    = Column(JSON, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("form_url", "page_index"),
+    )    
+    
+class FormRunAnswers(Base):
+    """Store answers used for each run - references the cache or stores run-specific data."""
+    
+    __tablename__ = "form_run_answers"
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    run_id = Column(String(255), nullable=False, index=True)  # Airflow run_id
+    execution_index = Column(Integer, nullable=False)  # Which execution in the run (0-indexed)
+    form_url = Column(String(2048), nullable=False)
+    cache_id = Column(String(36), nullable=True)  # Reference to FormAnswersCache (if cached)
+    answers = Column(JSON, nullable=False)  # The actual answers used
+    questions = Column(JSON, nullable=False)  # The questions at time of fill
+    success = Column(Boolean, default=None, nullable=True)  # null = in progress, True = success, False = failed
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        return f"<FormRunAnswers(run_id={self.run_id}, execution_index={self.execution_index}, form_url={self.form_url}, success={self.success})>"

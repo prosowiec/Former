@@ -1,9 +1,8 @@
 import os
-import random
 from datetime import datetime, timedelta
 
 from airflow import DAG
-from airflow.decorators import task
+from airflow.sdk import task
 
 default_args = {
     "owner": "you",
@@ -13,90 +12,183 @@ default_args = {
 }
 
 with DAG(
-    dag_id="form_filler_pipeline",
+    dag_id="form_filler_dag",
     default_args=default_args,
-    description="Auto fill forms using LLM",
+    description="Single form fill run. Triggered by form_filler_plan.",
     start_date=datetime(2024, 1, 1),
     catchup=False,
     tags=["forms", "automation"],
 ) as dag:
 
-
     @task
-    def get_conf():
+    def read_conf() -> dict:
         from airflow.operators.python import get_current_context
         context = get_current_context()
         dag_run = context.get("dag_run")
         conf = (dag_run.conf if dag_run else {}) or {}
         return {
-            "form_url": conf.get("form_url"),
+            "form_url": conf["form_url"],
+            "delay_minutes": float(conf.get("delay_minutes", 0)),
+            "execution_index": int(conf.get("execution_index", 0)),
             "num_executions": int(conf.get("num_executions", 1)),
-            "base_interval_minutes": float(conf.get("base_interval_minutes", 10.0)),
-            "interval_jitter_minutes": float(conf.get("interval_jitter_minutes", 2.0)),
-            "run_id": dag_run.run_id if dag_run else None,
+            "run_id": conf.get("run_id"),
         }
 
     @task
-    def build_execution_plan(conf: dict):
-        num = conf["num_executions"]
-        base = conf["base_interval_minutes"]
-        jitter = conf["interval_jitter_minutes"]
-        plan = []
-        for i in range(num):
-            delay = 0 if i == 0 else random.uniform(
-                max(0.1, base - jitter),
-                base + jitter,
-            )
-            plan.append({
-                "form_url": conf["form_url"],
-                "delay_minutes": delay,
-                "execution_index": i,
-                "num_executions": num,
-                "run_id": conf["run_id"],
-            })
-        return plan
-
-    @task
-    def run_and_log(form_url: str, delay_minutes: float, execution_index: int, num_executions: int, run_id: str):
+    def run_form(conf: dict) -> dict:
+        """
+        Per-page loop: extract → cache check → (miss) LLM → store → fill → next.
+        Browser stays open across all pages.
+        Collects all questions+answers per page for the run record.
+        """
         import time
+        import json
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        from former.backend.models import AirflowProgress
+        from former.backend.models import FormPageAnswersCache
+        from former.fillWorkflow.browser import launch_browser
+        from former.fillWorkflow.detectors import detect_question_type, detect_platform
+        from former.fillWorkflow.extract import extract_options, extract_title, extract_question_items
+        from former.fillWorkflow.fill import fill_question
+        from former.fillWorkflow.navigation import go_next_or_submit
+        from former.fillWorkflow.human import human_pause, human_before_question
         from former.fillWorkflow.config import OPENAI_API_KEY
         from former.LLM_interface.ChatgptFormFiller import chatgptFormFiller
-        from former.fillWorkflow.formFiller import run_form_pipeline
 
-        # --- run ---
-        if delay_minutes > 0:
-            print(f"[{execution_index + 1}/{num_executions}] Sleeping {delay_minutes:.2f} min before execution")
-            time.sleep(delay_minutes * 60)
+        idx, total = conf["execution_index"], conf["num_executions"]
+        form_url = conf["form_url"]
 
-        filler = chatgptFormFiller(OPENAI_API_KEY)
-        run_form_pipeline(form_url, filler)
+        if conf["delay_minutes"] > 0:
+            print(f"[{idx + 1}/{total}] Sleeping {conf['delay_minutes']:.2f} min")
+            time.sleep(conf["delay_minutes"] * 60)
 
-        db_url = os.environ["DATABASE_URL"]
-        engine = create_engine(db_url)
+        engine = create_engine(os.environ["DATABASE_URL"])
         Session = sessionmaker(bind=engine)
-        session = Session()
-        try:
-            execution: AirflowProgress = (
-                session.query(AirflowProgress).filter_by(run_id=run_id).first()
+
+        def get_or_create_page_answers(session, page_idx: int, extracted: list) -> list:
+            cached = (
+                session.query(FormPageAnswersCache)
+                .filter_by(form_url=form_url, page_index=page_idx)
+                .first()
             )
-            if execution:
-                execution.numberOfSuccessfulRuns += 1
-            else:
-                execution = AirflowProgress(
-                    run_id=run_id,
-                    numberOfSuccessfulRuns=1,
-                    hasFailedRuns=False,
-                    expectedTotalRuns=num_executions,
-                )
-                session.add(execution)
+            if cached:
+                print(f"  Page {page_idx}: cache hit")
+                return cached.answers
+
+            print(f"  Page {page_idx}: cache miss — calling LLM")
+            answers = chatgptFormFiller(OPENAI_API_KEY).get_selection(extracted)
+            session.add(FormPageAnswersCache(
+                form_url=form_url,
+                page_index=page_idx,
+                questions=extracted,
+                answers=answers,
+            ))
             session.commit()
-            print(f"[{execution_index + 1}/{num_executions}] Logged successful run.")
+            print(f"  Page {page_idx}: answers stored")
+            return answers
+
+        all_questions = []
+        all_answers = []
+
+        playwright, browser, page = launch_browser()
+        try:
+            platform = detect_platform(form_url)
+            page.goto(form_url, wait_until="networkidle")
+            page_idx = 0
+            session = Session()
+            try:
+                while True:
+                    seen = set()
+                    extracted = []
+                    page_elements = []
+
+                    for q in extract_question_items(page, platform):
+                        title = extract_title(q, platform)
+                        qtype = detect_question_type(q, platform)
+                        if qtype == "section_title":
+                            continue
+                        options = extract_options(q, qtype, platform)
+                        sig = (title.lower(), qtype, json.dumps(options, sort_keys=True, default=str))
+                        if sig in seen:
+                            continue
+                        seen.add(sig)
+                        extracted.append({"id": page_idx * 100 + len(extracted) + 1,
+                                          "question": title, "type": qtype, "options": options})
+                        page_elements.append((q, qtype))
+
+                    print(f"[{idx + 1}/{total}] Page {page_idx}: {len(extracted)} questions")
+                    answers = get_or_create_page_answers(session, page_idx, extracted)
+
+                    for (q, qtype), answer in zip(page_elements, answers):
+                        human_before_question(page, q)
+                        fill_question(page, q, platform, qtype, answer)
+
+                    all_questions.extend(extracted)
+                    all_answers.extend(answers)
+
+                    human_pause(1.5, 3.0)
+                    if go_next_or_submit(page, platform) == "submitted":
+                        human_pause(1.5, 3.0)
+                        print(f"[{idx + 1}/{total}] Submitted after {page_idx + 1} page(s)")
+                        break
+                    page_idx += 1
+            finally:
+                session.close()
+
+        except Exception as e:
+            return {"success": False, "error": str(e),
+                    "questions": all_questions, "answers": all_answers}
+        finally:
+            browser.close()
+            playwright.stop()
+
+        return {"success": True, "error": None,
+                "questions": all_questions, "answers": all_answers}
+
+    @task
+    def update_status(conf: dict, fill_result: dict) -> None:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from former.backend.models import FormRunAnswers, AirflowProgress
+
+        success = fill_result["success"]
+        idx, total = conf["execution_index"], conf["num_executions"]
+
+        engine = create_engine(os.environ["DATABASE_URL"])
+        session = sessionmaker(bind=engine)()
+        try:
+            # FormRunAnswers.answers + questions are non-nullable — always pass them
+            session.add(FormRunAnswers(
+                run_id=conf["run_id"],
+                execution_index=idx,
+                form_url=conf["form_url"],
+                answers=fill_result["answers"],
+                questions=fill_result["questions"],
+                success=success,
+                error_message=fill_result.get("error"),
+            ))
+
+            # AirflowProgress uses run_id as primary key (not dag_id)
+            progress = session.query(AirflowProgress).filter_by(run_id=conf["run_id"]).first()
+            if progress:
+                if success:
+                    progress.numberOfSuccessfulRuns += 1
+                else:
+                    progress.hasFailedRuns = True
+            else:
+                session.add(AirflowProgress(
+                    run_id=conf["run_id"],
+                    numberOfSuccessfulRuns=1 if success else 0,
+                    hasFailedRuns=not success,
+                    expectedTotalRuns=total,
+                ))
+
+            session.commit()
+            print(f"{'✓' if success else '✗'} [{idx + 1}/{total}] "
+                  f"{'Success' if success else 'Failed: ' + str(fill_result.get('error'))}")
         finally:
             session.close()
 
-    conf = get_conf()
-    execution_plan = build_execution_plan(conf)
-    run_and_log.expand_kwargs(execution_plan)
+    conf = read_conf()
+    fill_result = run_form(conf)
+    update_status(conf, fill_result)
