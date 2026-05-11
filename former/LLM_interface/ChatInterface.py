@@ -1,17 +1,13 @@
 from abc import ABC, abstractmethod
+from former.LLM_interface.personalityBuilder import PersonalityBuilder
 import json
 
 class chatInterface(ABC):
     
-    def generate__personality(self, personal_info: dict) -> str:
-        personality = f"""
-        You are a person filling out a form. Here is some information about you:
-        personal_info = {json.dumps(personal_info, indent=0)}
-        Imagine that you are this person, add personal story, make sure that if I write the same promtt again, you will generate the same personality 
-        with different details and you will give diffrent answers. Remember this information
-        and use this information to answer the questions in a consistent way.
-        """
-        return personality
+    personalityBuilder = PersonalityBuilder()
+    
+    def generate__personality(self, personal_info: dict) -> str:        
+        return self.personalityBuilder.build_personality(personal_info)
 
     def get_promt(self, form_data: dict, personal_info: dict = None) -> str:
         prompt = f"""
@@ -22,7 +18,7 @@ class chatInterface(ABC):
             {json.dumps(form_data, indent=0)}
 
             Personal Information:
-            {json.dumps(self.generate__personality(personal_info), indent=0)}
+            {json.dumps(personal_info, indent=0)}
 
             Return the answer ONLY as a JSON object.
 

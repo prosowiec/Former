@@ -33,9 +33,28 @@ with DAG(
             "num_executions": int(conf.get("num_executions", 1)),
             "run_id": conf.get("run_id"),
         }
+    
+    @task
+    def generate_personality(conf: dict) -> dict:
+        from former.backend.models import AirflowTriggerInternalRequest
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from former.LLM_interface.personalityBuilder import PersonalityBuilder
+
+        
+        engine = create_engine(os.environ["DATABASE_URL"])
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        fromData = session.query(AirflowTriggerInternalRequest).filter_by(run_id=conf["run_id"]).first()
+
+        personality = PersonalityBuilder().build_personality(fromData)
+        print(f"Generated personality for run_id {conf['run_id']}: {personality}")
+        
+        return personality
+
 
     @task
-    def run_form(conf: dict) -> dict:
+    def run_form(conf: dict, personality: dict) -> dict:
         """
         Per-page loop: extract → cache check → (miss) LLM → store → fill → next.
         Browser stays open across all pages.
@@ -76,7 +95,7 @@ with DAG(
                 return cached.answers
 
             print(f"  Page {page_idx}: cache miss — calling LLM")
-            answers = chatgptFormFiller(OPENAI_API_KEY).get_selection(extracted)
+            answers = chatgptFormFiller(OPENAI_API_KEY).get_selection(extracted, personality)
             session.add(FormPageAnswersCache(
                 form_url=form_url,
                 page_index=page_idx,
@@ -190,5 +209,6 @@ with DAG(
             session.close()
 
     conf = read_conf()
-    fill_result = run_form(conf)
+    personality = generate_personality(conf)
+    fill_result = run_form(conf, personality)
     update_status(conf, fill_result)
