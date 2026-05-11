@@ -40,11 +40,11 @@ class chatgptFormFiller(chatInterface):
         print(f"ChatGPT initialized with model: {model_name}")
         
 
-    def get_selection(self, form_data: dict) -> dict:
+    def get_selection(self, form_data: dict, personal_info: dict = None) -> dict:
         """
         Sends form structure to ChatGPT and returns selected answers as a dict.
         """
-        prompt = self.get_promt(form_data)
+        prompt = self.get_promt(form_data, personal_info)
 
         try:
             response = self.client.chat.completions.create(

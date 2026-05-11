@@ -12,11 +12,11 @@ class geminiFormFiller(chatInterface):
         self.model = genai.GenerativeModel(model_name)
         print(f"Gemini initialized with model: {model_name}")
 
-    def get_selection(self, form_data: dict) -> dict:
+    def get_selection(self, form_data: dict, personal_info: dict = None) -> dict:
         """
         Sends form structure to Gemini and returns selected answers as a dict.
         """
-        prompt = self.get_promt(self, form_data)
+        prompt = self.get_promt(form_data, personal_info)
         try:
             response = self.model.generate_content(prompt)
             
