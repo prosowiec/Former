@@ -1,7 +1,5 @@
-import random
 import dotenv
 import os
-from datetime import datetime, timedelta
 
 dotenv.load_dotenv()
 

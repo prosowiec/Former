@@ -1,8 +1,8 @@
 import os
 from datetime import datetime, timedelta
-
 from airflow import DAG
 from airflow.sdk import task
+from dags.utils import extract_answers
 
 default_args = {
     "owner": "you",
@@ -61,19 +61,15 @@ with DAG(
         Collects all questions+answers per page for the run record.
         """
         import time
-        import json
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        from former.backend.models import FormPageAnswersCache
         from former.fillWorkflow.browser import launch_browser
-        from former.fillWorkflow.detectors import detect_question_type, detect_platform
-        from former.fillWorkflow.extract import extract_options, extract_title, extract_question_items
+        from former.fillWorkflow.detectors import detect_platform
         from former.fillWorkflow.fill import fill_question
         from former.fillWorkflow.navigation import go_next_or_submit
         from former.fillWorkflow.human import human_pause, human_before_question
-        from former.fillWorkflow.config import OPENAI_API_KEY
-        from former.LLM_interface.ChatgptFormFiller import chatgptFormFiller
-
+        from dags.utils import get_or_create_page_answers
+        
         idx, total = conf["execution_index"], conf["num_executions"]
         form_url = conf["form_url"]
 
@@ -83,83 +79,41 @@ with DAG(
 
         engine = create_engine(os.environ["DATABASE_URL"])
         Session = sessionmaker(bind=engine)
+        session = Session()
 
-        def get_or_create_page_answers(session, page_idx: int, extracted: list) -> list:
-            cached = (
-                session.query(FormPageAnswersCache)
-                .filter_by(form_url=form_url, page_index=page_idx)
-                .first()
-            )
-            if cached:
-                print(f"  Page {page_idx}: cache hit")
-                return cached.answers
-
-            print(f"  Page {page_idx}: cache miss — calling LLM")
-            answers = chatgptFormFiller(OPENAI_API_KEY).get_selection(extracted, personality)
-            session.add(FormPageAnswersCache(
-                form_url=form_url,
-                page_index=page_idx,
-                questions=extracted,
-                answers=answers,
-            ))
-            session.commit()
-            print(f"  Page {page_idx}: answers stored")
-            return answers
 
         all_questions = []
         all_answers = []
 
         playwright, browser, page = launch_browser()
-        try:
-            platform = detect_platform(form_url)
-            page.goto(form_url, wait_until="networkidle")
-            page_idx = 0
-            session = Session()
-            try:
-                while True:
-                    seen = set()
-                    extracted = []
-                    page_elements = []
+        platform = detect_platform(form_url)
+        page.goto(form_url, wait_until="networkidle")
+        page_idx = 0
+        while True:
+            
+            extracted, page_elements = extract_answers(page, platform, page_idx)
 
-                    for q in extract_question_items(page, platform):
-                        title = extract_title(q, platform)
-                        qtype = detect_question_type(q, platform)
-                        if qtype == "section_title":
-                            continue
-                        options = extract_options(q, qtype, platform)
-                        sig = (title.lower(), qtype, json.dumps(options, sort_keys=True, default=str))
-                        if sig in seen:
-                            continue
-                        seen.add(sig)
-                        extracted.append({"id": page_idx * 100 + len(extracted) + 1,
-                                          "question": title, "type": qtype, "options": options})
-                        page_elements.append((q, qtype))
+            print(f"[{idx + 1}/{total}] Page {page_idx}: {len(extracted)} questions")
+            answers = get_or_create_page_answers(session, page_idx, extracted, personality, form_url)
 
-                    print(f"[{idx + 1}/{total}] Page {page_idx}: {len(extracted)} questions")
-                    answers = get_or_create_page_answers(session, page_idx, extracted)
+            for (q, qtype), answer in zip(page_elements, answers):
+                human_before_question(page, q)
+                fill_question(page, q, platform, qtype, answer)
 
-                    for (q, qtype), answer in zip(page_elements, answers):
-                        human_before_question(page, q)
-                        fill_question(page, q, platform, qtype, answer)
+            all_questions.extend(extracted)
+            all_answers.extend(answers)
 
-                    all_questions.extend(extracted)
-                    all_answers.extend(answers)
+            human_pause(1.5, 3.0)
+            if go_next_or_submit(page, platform) == "submitted":
+                human_pause(1.5, 3.0)
+                print(f"[{idx + 1}/{total}] Submitted after {page_idx + 1} page(s)")
+                break
+            
+            page_idx += 1
 
-                    human_pause(1.5, 3.0)
-                    if go_next_or_submit(page, platform) == "submitted":
-                        human_pause(1.5, 3.0)
-                        print(f"[{idx + 1}/{total}] Submitted after {page_idx + 1} page(s)")
-                        break
-                    page_idx += 1
-            finally:
-                session.close()
-
-        except Exception as e:
-            return {"success": False, "error": str(e),
-                    "questions": all_questions, "answers": all_answers}
-        finally:
-            browser.close()
-            playwright.stop()
+        browser.close()
+        playwright.stop()
+        session.close()
 
         return {"success": True, "error": None,
                 "questions": all_questions, "answers": all_answers}
@@ -176,7 +130,7 @@ with DAG(
         engine = create_engine(os.environ["DATABASE_URL"])
         session = sessionmaker(bind=engine)()
         try:
-            # FormRunAnswers.answers + questions are non-nullable — always pass them
+
             session.add(FormRunAnswers(
                 run_id=conf["run_id"],
                 execution_index=idx,
@@ -187,7 +141,7 @@ with DAG(
                 error_message=fill_result.get("error"),
             ))
 
-            # AirflowProgress uses run_id as primary key (not dag_id)
+
             progress = session.query(AirflowProgress).filter_by(run_id=conf["run_id"]).first()
             if progress:
                 if success:
