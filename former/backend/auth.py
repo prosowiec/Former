@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional
 import jwt
 
-from .config import (
+from ..config import (
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
     GOOGLE_OAUTH_REDIRECT_URI,

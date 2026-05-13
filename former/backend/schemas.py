@@ -2,7 +2,7 @@ from typing import Dict, Optional
 
 from pydantic import BaseModel, Field, HttpUrl, constr
 
-from .config import DEFAULT_DAG_ID
+from ..config import DEFAULT_DAG_ID
 
 
 class AirflowTriggerRequest(BaseModel):

@@ -15,7 +15,7 @@ from former.backend.models import AirflowProgress, AirflowTriggerInternalRequest
 
 
 from .auth import build_google_login_url, get_google_user_from_code, create_token_pair, verify_token, create_access_token
-from .config import FRONTEND_URL, SECRET_KEY
+from ..config import FRONTEND_URL, SECRET_KEY
 from .dagOperations import trigger_airflow_dag
 from .schemas import (
     AirflowRunResponse,

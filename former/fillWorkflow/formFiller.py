@@ -8,7 +8,7 @@ from former.fillWorkflow.extract import extract_options, extract_title, extract_
 from former.fillWorkflow.fill import fill_question
 from former.fillWorkflow.navigation import go_next_or_submit
 from former.fillWorkflow.human import human_pause, human_before_question
-import former.fillWorkflow.config as config
+import former.config as config
 import json
 
 

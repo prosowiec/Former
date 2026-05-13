@@ -3,7 +3,7 @@ from typing import Dict, Optional
 
 import httpx
 
-from former.backend.config import AIRFLOW_HOST, AIRFLOW_PASSWORD, AIRFLOW_USERNAME, AIRFLOW_BASE_URL
+from former.config import AIRFLOW_HOST, AIRFLOW_PASSWORD, AIRFLOW_USERNAME, AIRFLOW_BASE_URL
 
 
 def get_airflow_access_token() -> str:

@@ -1,6 +1,6 @@
 from former.LLM_interface.ChatgptFormFiller import chatgptFormFiller
 from former.backend.models import FormPageAnswersCache
-from former.backend.config import OPENAI_API_KEY
+from former.config import OPENAI_API_KEY
 from former.fillWorkflow.detectors import detect_question_type
 from former.fillWorkflow.extract import extract_options, extract_title, extract_question_items
 import json

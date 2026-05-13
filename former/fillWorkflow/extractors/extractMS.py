@@ -1,5 +1,3 @@
-# ---------- CHOICE ----------
-
 def extract_multiple_choice(q):
     options = [
         c.inner_text().strip()
