@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth";
 import { useRuns } from "./hooks/useRuns";
+import LandingPage from "./components/LandingPage";
 import LoginPage from "./components/LoginPage";
+import OAuthSuccess from "./components/OAuthSuccess";
 import HealthBadge from "./components/HealthBadge";
 import StatsBar from "./components/StatsBar";
 import TriggerForm from "./components/TriggerForm";
@@ -9,6 +12,7 @@ import RunsTable from "./components/RunsTable";
 import "./index.css";
 
 export default function App() {
+  const navigate = useNavigate();
   const { user, loading: authLoading, logout, login, refetchUser } = useAuth();
   const { runs, loading: runsLoading, addRun, stats } = useRuns();
   const [successBanner, setSuccessBanner] = useState(null);
@@ -22,10 +26,6 @@ export default function App() {
     );
   }
 
-  if (!user) {
-    return <LoginPage onLogin={refetchUser} onGoogleLogin={login} />;
-  }
-
   function handleTriggerSuccess(result, runName) {
     const newRun = {
       dag_run_id: result.dag_run_id,
@@ -33,6 +33,9 @@ export default function App() {
       run_name: runName,
       state: result.state,
       dag_id: result.dag_id,
+      num_executions: result.num_executions,
+      base_interval_minutes: result.base_interval_minutes,
+      interval_jitter_minutes: result.interval_jitter_minutes,
       created_at: new Date().toISOString(),
     };
     addRun(newRun);
@@ -48,17 +51,18 @@ export default function App() {
   ];
 
   const filteredRuns = runs.filter((r) => {
-    if (activeTab === "all") return true;
     if (activeTab === "running") return r.state === "running" || r.state === "queued";
     if (activeTab === "done") return r.state === "success";
     if (activeTab === "failed") return r.state === "failed";
     return true;
   });
 
-  return (
+  const dashboardElement = user ? (
     <div className="app">
       <header className="header">
-        <span className="logo">former</span>
+        <button className="logo logo--btn" onClick={() => navigate("/landing")}>
+          former
+        </button>
         <div className="header-right">
           <HealthBadge />
           <div className="user-menu">
@@ -71,7 +75,13 @@ export default function App() {
               />
             )}
             <span className="user-name">{user.name ?? user.email}</span>
-            <button className="logout-btn" onClick={logout}>
+            <button
+              className="logout-btn"
+              onClick={async () => {
+                await logout();
+                navigate("/landing");
+              }}
+            >
               Sign out
             </button>
           </div>
@@ -79,8 +89,6 @@ export default function App() {
       </header>
 
       <main className="main main--wide">
-
-        {/* Hero section */}
         <div className="dashboard-hero">
           <div className="dashboard-hero__text">
             <h1>Form filler</h1>
@@ -92,7 +100,6 @@ export default function App() {
           <StatsBar stats={stats} />
         </div>
 
-        {/* Trigger card */}
         <div className="card">
           <div className="card__header">
             <span className="card__title">New run</span>
@@ -106,7 +113,6 @@ export default function App() {
           <TriggerForm onSuccess={handleTriggerSuccess} />
         </div>
 
-        {/* Runs section */}
         <div className="card">
           <div className="card__header">
             <span className="card__title">Runs</span>
@@ -124,8 +130,36 @@ export default function App() {
           </div>
           <RunsTable runs={filteredRuns} loading={runsLoading} />
         </div>
-
       </main>
     </div>
+  ) : null;
+
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={user ? <Navigate to="/home" replace /> : <Navigate to="/landing" replace />}
+      />
+      <Route
+        path="/landing"
+        element={user ? <Navigate to="/home" replace /> : <LandingPage onGoToApp={() => navigate("/login")} />}
+      />
+      <Route
+        path="/login"
+        element={user ? <Navigate to="/home" replace /> : (
+          <LoginPage
+            onLogin={async () => {
+              await refetchUser();
+              navigate("/home");
+            }}
+            onGoogleLogin={login}
+            onBack={() => navigate("/landing")}
+          />
+        )}
+      />
+      <Route path="/oauth-success" element={<OAuthSuccess />} />
+      <Route path="/home" element={dashboardElement || <Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to={user ? "/home" : "/landing"} replace />} />
+    </Routes>
   );
 }

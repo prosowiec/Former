@@ -482,6 +482,33 @@ body {
   justify-content: center;
 }
 
+.logo--btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  padding: 0;
+}
+
+.login-back {
+  position: absolute;
+  top: 24px;
+  left: 28px;
+  background: none;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.12s;
+}
+.login-back:hover { color: var(--text); }
+
 /* ── Login page ──────────────────────────────────────────── */
 .login-page {
   min-height: 100vh;
@@ -489,6 +516,7 @@ body {
   align-items: center;
   justify-content: center;
   background: var(--bg);
+  position: relative;
 }
 
 .login-card {

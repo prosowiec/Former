@@ -15,25 +15,6 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-  if (window.location.pathname === "/oauth-success") {
-    fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/tokens`, {
-      credentials: "include",
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (!data.access_token) throw new Error("No tokens");
-
-        setTokens(data.access_token, data.refresh_token);
-
-        window.history.replaceState({}, document.title, "/");
-
-        refetchUser(); // or setUser(...)
-      })
-      .catch(err => console.error("OAuth failed:", err));
-  }
-}, []);
-
-  useEffect(() => {
     // Restore tokens from localStorage on component mount
     const accessToken = localStorage.getItem("access_token");
     const refreshToken = localStorage.getItem("refresh_token");
@@ -54,7 +35,6 @@ export function useAuth() {
   const logout = useCallback(async () => {
     await api.logout();
     setUser(null);
-    window.location.href = "/";
   }, []);
 
   const login = useCallback(() => {
