@@ -5,19 +5,19 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export default function OAuthSuccess() {
   useEffect(() => {
-    fetch(`${BASE_URL}/auth/tokens`, {
-      credentials: "include",
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.access_token) {
-          throw new Error("No tokens received");
+    fetch(`${BASE_URL}/auth/tokens`, { credentials: "include" })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
-
+        return res.json();
+      })
+      .then((data) => {
+        if (!data.access_token || !data.refresh_token) {
+          throw new Error("Tokens missing from response");
+        }
         setTokens(data.access_token, data.refresh_token);
-
-        // Redirect with a full reload so the SPA can reinitialize with auth state.
-        window.location.replace("/home");
+        window.location.replace("/");
       })
       .catch((err) => {
         console.error("OAuth failed:", err);
@@ -25,5 +25,9 @@ export default function OAuthSuccess() {
       });
   }, []);
 
-  return <div>Logging you in via Google...</div>;
+  return (
+    <div className="loading-screen">
+      <span className="spinner spinner--dark" />
+    </div>
+  );
 }

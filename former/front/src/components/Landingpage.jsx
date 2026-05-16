@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import "./LandingPage.css";
+import { useNavigate } from "react-router-dom";
+
 
 const STEPS = [
   {
@@ -47,8 +48,11 @@ function FaqItem({ q, a }) {
   );
 }
 
-export default function LandingPage({ onGoToApp }) {
+export default function LandingPage() {
+  const navigate = useNavigate();
   const heroRef = useRef(null);
+  function goToApp() { navigate("/login"); }
+  function goToRegister() { navigate("/register"); }
 
   useEffect(() => {
     const els = document.querySelectorAll(".lp-reveal");
@@ -67,43 +71,50 @@ export default function LandingPage({ onGoToApp }) {
       <nav className="lp-nav">
         <span className="lp-nav__logo">former</span>
         <div className="lp-nav__right">
-          <button className="lp-nav__login" onClick={onGoToApp}>Sign in</button>
-          <button className="lp-nav__cta" onClick={onGoToApp}>
+          <button className="lp-nav__login" onClick={goToApp}>Sign in</button>
+          <button className="lp-nav__cta" onClick={goToRegister}>
             Sign up free
           </button>
         </div>
       </nav>
 
-      {/* Hero */}
+      {/* Hero — two columns */}
       <section className="lp-hero" ref={heroRef}>
-        <div className="lp-hero__eyebrow">LLM-powered form filling</div>
-        <h1 className="lp-hero__h1">
-          Stop filling<br />
-          forms<br />
-          <em>manually.</em>
-        </h1>
-        <p className="lp-hero__sub">
-          former fills university application and enrollment forms for you —
-          fast, realistic, and tuned to sound like an actual human.
-          Not a bot. Not obviously AI. Just done.
-        </p>
-        <div className="lp-hero__actions">
-          <button
-            className="lp-btn lp-btn--primary"
-            onClick={onGoToApp}
-          >
-            Get started free
-          </button>
-          <button className="lp-btn lp-btn--ghost" onClick={onGoToApp}>
-            Sign in →
-          </button>
+        {/* Left: big display headline */}
+        <div className="lp-hero__left">
+          <div className="lp-hero__eyebrow">AI-powered form filling</div>
+          <h1 className="lp-hero__h1">
+            Fill forms<br />
+            automatically
+          </h1>
+          <div className="lp-hero__pills">
+            <span className="lp-pill">Google forms</span>
+            <span className="lp-pill">Microsoft form</span>
+            <span className="lp-pill">5 personality axes</span>
+          </div>
         </div>
 
-        {/* Floating stat pills */}
-        <div className="lp-hero__pills">
-          <span className="lp-pill">40 min → 90 sec</span>
-          <span className="lp-pill">5 personality axes</span>
-          <span className="lp-pill">Any HTML form</span>
+        {/* Right: sell it */}
+        <div className="lp-hero__right">
+          <p className="lp-hero__lead">
+            Former completes Google and Microsoft forms using realistic,
+            context-aware AI responses that sound natural — not robotic.
+          </p>
+
+          <ul className="lp-hero__bullets">
+            <li><span className="lp-hero__bullet-icon">→</span> Stop chasing people for input. Generate high-quality responses instantly.</li>
+            <li><span className="lp-hero__bullet-icon">→</span> Tune a 5-axis personality so every answer fits the applicant profile.</li>
+            <li><span className="lp-hero__bullet-icon">→</span> Trigger dozens of runs with randomised timing — no detectable patterns.</li>
+          </ul>
+
+          <div className="lp-hero__actions">
+            <button className="lp-btn lp-btn--primary" onClick={goToRegister}>
+              Get started free
+            </button>
+            <button className="lp-btn lp-btn--ghost" onClick={goToApp}>
+              Sign in →
+            </button>
+          </div>
         </div>
       </section>
 
@@ -212,10 +223,10 @@ export default function LandingPage({ onGoToApp }) {
           <p className="lp-waitlist__sub">
             Create an account and start filling forms in under two minutes.
           </p>
-          <button className="lp-waitlist__btn lp-waitlist__btn--large" onClick={onGoToApp}>
+          <button className="lp-waitlist__btn lp-waitlist__btn--large" onClick={goToRegister}>
             Create free account →
           </button>
-          <p className="lp-waitlist__fine">Already have an account? <button className="lp-waitlist__signin" onClick={onGoToApp}>Sign in</button></p>
+          <p className="lp-waitlist__fine">Already have an account? <button className="lp-waitlist__signin" onClick={goToApp}>Sign in</button></p>
         </div>
       </section>
 
