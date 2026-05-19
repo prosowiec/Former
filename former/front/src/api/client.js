@@ -1,14 +1,38 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
-// Token management
-let accessToken = localStorage.getItem("access_token");
-let refreshToken = localStorage.getItem("refresh_token");
+let accessToken = sessionStorage.getItem("access_token");
+let refreshToken = sessionStorage.getItem("refresh_token");
+
+function decodeToken(token) {
+  if (!token) return null;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    
+    const payload = JSON.parse(atob(parts[1]));
+    return payload;
+  } catch (e) {
+    console.error("Failed to decode token:", e);
+    return null;
+  }
+}
+
+function isTokenExpired(token) {
+  const decoded = decodeToken(token);
+  if (!decoded || !decoded.exp) return true;
+  
+  const expirationTime = decoded.exp * 1000; // exp is in seconds
+  const now = Date.now();
+  const bufferMs = 60 * 1000; // 60 second buffer before expiry
+  
+  return now >= expirationTime - bufferMs;
+}
 
 export function setTokens(access_token, refresh_token) {
   accessToken = access_token;
   refreshToken = refresh_token;
-  if (access_token) localStorage.setItem("access_token", access_token);
-  if (refresh_token) localStorage.setItem("refresh_token", refresh_token);
+  if (access_token) sessionStorage.setItem("access_token", access_token);
+  if (refresh_token) sessionStorage.setItem("refresh_token", refresh_token);
 }
 
 export function getAccessToken() {
@@ -19,9 +43,9 @@ export function clearTokens() {
   console.log("Clearing tokens...");
   accessToken = null;
   refreshToken = null;
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
-  console.log("Tokens cleared. access_token in localStorage:", localStorage.getItem("access_token"));
+  sessionStorage.removeItem("access_token");
+  sessionStorage.removeItem("refresh_token");
+  console.log("Tokens cleared. access_token in sessionStorage:", sessionStorage.getItem("access_token"));
 }
 
 async function refreshAccessToken() {
@@ -53,6 +77,16 @@ async function refreshAccessToken() {
 }
 
 async function request(path, options = {}) {
+  if (accessToken && isTokenExpired(accessToken) && refreshToken && path !== "/auth/refresh") {
+    try {
+      const newAccessToken = await refreshAccessToken();
+      accessToken = newAccessToken;
+    } catch (error) {
+      console.error("Proactive token refresh failed:", error);
+      throw error;
+    }
+  }
+
   let headers = {
     "Content-Type": "application/json",
     ...options.headers,
@@ -71,7 +105,6 @@ async function request(path, options = {}) {
 
   const body = await res.json().catch(() => ({}));
 
-  // Handle token expiration - try to refresh and retry
   if (res.status === 401 && refreshToken && path !== "/auth/refresh") {
     try {
       const newAccessToken = await refreshAccessToken();
