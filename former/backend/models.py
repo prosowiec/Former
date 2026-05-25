@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from pydantic import HttpUrl
-from sqlalchemy import Column, Float, Integer, String, DateTime, Boolean, Text, JSON, UniqueConstraint
+from sqlalchemy import Column, Float, Integer, String, DateTime, Boolean, Text, JSON, UniqueConstraint, ForeignKey
 import uuid
 
 from .db import Base
@@ -26,6 +26,47 @@ class User(Base):
     
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, username={self.username})>"
+
+
+class UserBillingInfo(Base):
+    """User billing and form fill quota tracking for Stripe transactions."""
+    
+    __tablename__ = "user_billing_info"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    total_amount_paid = Column(Float, default=0.0, nullable=False)  # Total amount user has paid
+    form_fills_remaining = Column(Integer, default=10, nullable=False)  # Remaining form fills
+    form_fills_used = Column(Integer, default=0, nullable=False)  # Total form fills used
+    stripe_customer_id = Column(String(255), nullable=True, unique=True)  # Stripe customer ID
+    stripe_subscription_id = Column(String(255), nullable=True)  # Stripe subscription ID
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        return f"<UserBillingInfo(user_id={self.user_id}, total_amount_paid={self.total_amount_paid}, form_fills_remaining={self.form_fills_remaining})>"
+
+
+class StripeTransaction(Base):
+    """Transaction history for Stripe payments."""
+    
+    __tablename__ = "stripe_transactions"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    stripe_transaction_id = Column(String(255), nullable=False, unique=True, index=True)  # Stripe payment intent ID
+    amount = Column(Float, nullable=False)  # Amount paid in this transaction
+    currency = Column(String(3), default="USD", nullable=False)  # Currency code
+    form_fills_purchased = Column(Integer, default=0, nullable=False)  # Number of form fills purchased
+    status = Column(String(50), nullable=False)  # e.g., 'succeeded', 'pending', 'failed'
+    description = Column(Text, nullable=True)  # Transaction description
+    stripe_metadata = Column(JSON, nullable=True)  # Additional metadata from Stripe
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        return f"<StripeTransaction(user_id={self.user_id}, amount={self.amount}, status={self.status})>"
+
 
 class AirflowTriggerInternalRequest(Base):
     __tablename__ = "airflow_trigger_requests"

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import RunStageIndicator from "./RunStageIndicator";
+import { api } from "../api/client";
 
 const STATE_COLORS = {
-  queued: "var(--yellow)",
+  queued:  "var(--yellow)",
   running: "var(--blue)",
   success: "var(--green)",
-  failed: "var(--red)",
+  failed:  "var(--red)",
   unknown: "var(--muted)",
 };
 
@@ -17,7 +18,9 @@ const AXIS_LABELS = {
   formality:         "Formality",
 };
 
-function truncate(url, max = 48) {
+const CANCELLABLE = new Set(["queued", "running"]);
+
+function truncate(url, max = 44) {
   if (!url) return "—";
   try {
     const u = new URL(url);
@@ -41,38 +44,97 @@ function humanize(val) {
   return val.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// ── Run detail modal ────────────────────────────────────────
-function RunModal({ run, onClose }) {
+// ── Cancel button ────────────────────────────────────────────
+function CancelButton({ run, onCancelled }) {
+  const [state, setState] = useState("idle"); // idle | confirming | loading
+
+  if (!CANCELLABLE.has(run.state)) return null;
+
+  async function doCancel(e) {
+    e.stopPropagation();
+    setState("loading");
+    try {
+      await api.cancelRun(run.dag_run_id);
+      onCancelled?.(run.dag_run_id);
+    } catch {
+      setState("confirming"); // revert to confirm on error
+    }
+  }
+
+  if (state === "loading") {
+    return <span className="run-cancel run-cancel--loading">Cancelling…</span>;
+  }
+
+  if (state === "confirming") {
+    return (
+      <span className="run-cancel run-cancel--confirm" onClick={(e) => e.stopPropagation()}>
+        <button className="run-cancel__yes" onClick={doCancel}>Cancel run</button>
+        <button className="run-cancel__no" onClick={(e) => { e.stopPropagation(); setState("idle"); }}>Keep</button>
+      </span>
+    );
+  }
+
+  return (
+    <button
+      className="run-cancel run-cancel--idle"
+      onClick={(e) => { e.stopPropagation(); setState("confirming"); }}
+      title="Cancel this run"
+    >
+      ✕
+    </button>
+  );
+}
+
+// ── Execution count badge ─────────────────────────────────────
+function ExecBadge({ run }) {
+  const total     = run.num_executions ?? 1;
+  const completed = run.progress?.completed ?? (run.state === "success" ? total : 0);
+
+  if (total <= 1) return null;
+
+  return (
+    <span className="exec-badge" title={`${completed} of ${total} executions done`}>
+      {completed}/{total}
+    </span>
+  );
+}
+
+// ── Run detail modal ─────────────────────────────────────────
+function RunModal({ run, onClose, onCancelled }) {
   const personalityAxes = ["age_profile", "political_leaning", "risk_tolerance", "verbosity", "formality"];
-  const hasPersonality = personalityAxes.some((k) => run[k]);
+  const hasPersonality  = personalityAxes.some((k) => run[k]);
+  const total           = run.num_executions ?? 1;
+  const completed       = run.progress?.completed ?? (run.state === "success" ? total : 0);
+  const pct             = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
+
         <div className="modal__header">
           <div className="modal__title-group">
             <span className="modal__title">{run.run_name}</span>
-            <span
-              className="state-badge"
-              style={{ color: STATE_COLORS[run.state] ?? STATE_COLORS.unknown }}
-            >
+            <span className="state-badge" style={{ color: STATE_COLORS[run.state] ?? STATE_COLORS.unknown }}>
               {run.state}
             </span>
           </div>
-          <button className="modal__close" onClick={onClose} aria-label="Close">
-            <CloseIcon />
-          </button>
+          <div className="modal__header-actions">
+            {CANCELLABLE.has(run.state) && (
+              <CancelButton run={run} onCancelled={(id) => { onCancelled?.(id); onClose(); }} />
+            )}
+            <button className="modal__close" onClick={onClose} aria-label="Close">
+              <CloseIcon />
+            </button>
+          </div>
         </div>
 
         <div className="modal__body">
 
-          {/* Stage */}
           <div className="modal__section">
             <span className="modal__section-title">Progress</span>
             <RunStageIndicator state={run.state} />
           </div>
 
-          {/* Core info */}
           <div className="modal__section">
             <span className="modal__section-title">Run details</span>
             <dl className="modal__dl">
@@ -91,36 +153,29 @@ function RunModal({ run, onClose }) {
             </dl>
           </div>
 
-          {/* Executions progress */}
-          {run.num_executions > 0 && (() => {
-            const completed = run.progress?.completed ?? (run.state === "success" ? run.num_executions : 0);
-            const total = run.num_executions;
-            const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-            return (
-              <div className="modal__section">
-                <span className="modal__section-title">Executions</span>
-                <div className="modal__exec">
-                  <div className="modal__exec-meta">
-                    <span className="modal__exec-count">{completed} / {total}</span>
-                    <span className="modal__exec-pct">{pct}%</span>
-                  </div>
-                  <div className="modal__exec-track">
-                    <div
-                      className={`modal__exec-fill${run.state === "failed" ? " modal__exec-fill--failed" : ""}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  {run.num_executions > 1 && (
-                    <span className="modal__exec-interval">
-                      Every {run.base_interval_minutes} min ± {run.interval_jitter_minutes} min
-                    </span>
-                  )}
+          {total > 0 && (
+            <div className="modal__section">
+              <span className="modal__section-title">Executions</span>
+              <div className="modal__exec">
+                <div className="modal__exec-meta">
+                  <span className="modal__exec-count">{completed} / {total}</span>
+                  <span className="modal__exec-pct">{pct}%</span>
                 </div>
+                <div className="modal__exec-track">
+                  <div
+                    className={`modal__exec-fill${run.state === "failed" ? " modal__exec-fill--failed" : ""}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                {total > 1 && (
+                  <span className="modal__exec-interval">
+                    Every {run.base_interval_minutes} min ± {run.interval_jitter_minutes} min
+                  </span>
+                )}
               </div>
-            );
-          })()}
+            </div>
+          )}
 
-          {/* Personality */}
           {hasPersonality && (
             <div className="modal__section">
               <span className="modal__section-title">Agent personality</span>
@@ -134,6 +189,7 @@ function RunModal({ run, onClose }) {
               </div>
             </div>
           )}
+
         </div>
       </div>
     </div>
@@ -148,8 +204,8 @@ function CloseIcon() {
   );
 }
 
-// ── Main table ──────────────────────────────────────────────
-export default function RunsTable({ runs, loading }) {
+// ── Main table ───────────────────────────────────────────────
+export default function RunsTable({ runs, loading, onRunCancelled }) {
   const [selected, setSelected] = useState(null);
 
   if (loading) return <div className="runs-empty">Loading runs…</div>;
@@ -171,41 +227,51 @@ export default function RunsTable({ runs, loading }) {
           <span>Progress</span>
           <span>Status</span>
           <span>Started</span>
+          <span></span>{/* cancel col */}
         </div>
 
-        {runs.map((run) => {
-          console.log(run);
-          return (
-            <button
-              key={run.dag_run_id ?? run.id}
-              className="runs-table__row runs-table__row--btn"
-              onClick={() => setSelected(run)}
-            >
-              <div className="runs-table__name-cell">
+        {runs.map((run) => (
+          <button
+            key={run.dag_run_id ?? run.id}
+            className="runs-table__row runs-table__row--btn"
+            onClick={() => setSelected(run)}
+          >
+            {/* Name + URL + exec count */}
+            <div className="runs-table__name-cell">
+              <div className="runs-table__name-row">
                 <span className="runs-table__name">{run.run_name || "—"}</span>
-                <span className="runs-table__url mono" title={run.form_url}>
-                  {truncate(run.form_url)}
-                </span>
+                <ExecBadge run={run} />
               </div>
-
-              <RunStageIndicator state={run.state} />
-
-              <span
-                className="state-badge"
-                style={{ color: STATE_COLORS[run.state] ?? STATE_COLORS.unknown }}
-              >
-                {run.state}
+              <span className="runs-table__url mono" title={run.form_url}>
+                {truncate(run.form_url)}
               </span>
+            </div>
 
-              <span className="runs-table__date">
-                {formatDate(run.created_at ?? run.logical_date)}
-              </span>
-            </button>
-          );
-        })}
+            <RunStageIndicator state={run.state} />
+
+            <span className="state-badge" style={{ color: STATE_COLORS[run.state] ?? STATE_COLORS.unknown }}>
+              {run.state}
+            </span>
+
+            <span className="runs-table__date">
+              {formatDate(run.created_at ?? run.logical_date)}
+            </span>
+
+            {/* Cancel — stops row click propagation internally */}
+            <span className="runs-table__actions" onClick={(e) => e.stopPropagation()}>
+              <CancelButton run={run} onCancelled={onRunCancelled} />
+            </span>
+          </button>
+        ))}
       </div>
 
-      {selected && <RunModal run={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <RunModal
+          run={selected}
+          onClose={() => setSelected(null)}
+          onCancelled={(id) => { onRunCancelled?.(id); setSelected(null); }}
+        />
+      )}
     </>
   );
 }

@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Annotated, Dict, Optional
 
 import httpx
+import stripe
 from fastapi import FastAPI, HTTPException, Request, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -11,11 +12,11 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
 
-from former.backend.models import AirflowProgress, AirflowTriggerInternalRequest
+from former.backend.models import AirflowProgress, AirflowTriggerInternalRequest, UserBillingInfo, StripeTransaction, User
 
 
 from .auth import build_google_login_url, get_google_user_from_code, create_token_pair, verify_token, create_access_token
-from ..config import FRONTEND_URL, SECRET_KEY
+from ..config import FRONTEND_URL, SECRET_KEY, STRIPE_SECRET_KEY
 from .dagOperations import trigger_airflow_dag
 from .schemas import (
     AirflowRunResponse,
@@ -27,6 +28,13 @@ from .schemas import (
     TokenResponse,
     UserResponse,
     RefreshTokenRequest,
+    UserBillingInfoResponse,
+    StripeTransactionResponse,
+    StripeTransactionRequest,
+    UpdateFormFillsRequest,
+    CreatePaymentIntentRequest,
+    CreatePaymentIntentResponse,
+    ConfirmPaymentRequest,
 )
 from .users import authenticate_user, create_user, get_user, get_or_create_oauth_user
 from .db import get_db, init_db
@@ -89,6 +97,10 @@ app = FastAPI(
     description="Trigger the Airflow form filler DAG with a form URL.",
     version="0.1.0",
 )
+
+# Initialize Stripe
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
 
 app.add_middleware(
     CORSMiddleware,
@@ -380,3 +392,283 @@ def airflow_trigger(
         interval_jitter_minutes=payload.interval_jitter_minutes,
         airflow_response=response_payload,
     )
+
+
+# ============ BILLING ENDPOINTS ============
+
+@app.get("/billing/info", response_model=UserBillingInfoResponse)
+def get_billing_info(
+    current_user: Annotated[Dict, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    """Get current user's billing information."""
+    billing_info = db.query(UserBillingInfo).filter_by(user_id=current_user["id"]).first()
+    
+    if not billing_info:
+        raise HTTPException(status_code=404, detail="Billing information not found")
+    
+    return UserBillingInfoResponse(
+        id=billing_info.id,
+        user_id=billing_info.user_id,
+        total_amount_paid=billing_info.total_amount_paid,
+        form_fills_remaining=billing_info.form_fills_remaining,
+        form_fills_used=billing_info.form_fills_used,
+        stripe_customer_id=billing_info.stripe_customer_id,
+        stripe_subscription_id=billing_info.stripe_subscription_id,
+        created_at=billing_info.created_at.isoformat() if billing_info.created_at else None,
+        updated_at=billing_info.updated_at.isoformat() if billing_info.updated_at else None,
+    )
+
+
+@app.post("/billing/transaction", response_model=StripeTransactionResponse)
+def create_billing_transaction(
+    transaction: StripeTransactionRequest,
+    current_user: Annotated[Dict, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    """Record a Stripe transaction and update user's billing info."""
+    
+    # Check if transaction already exists
+    existing = db.query(StripeTransaction).filter_by(
+        stripe_transaction_id=transaction.stripe_transaction_id
+    ).first()
+    
+    if existing:
+        raise HTTPException(status_code=400, detail="Transaction already recorded")
+    
+    # Create transaction record
+    stripe_transaction = StripeTransaction(
+        user_id=current_user["id"],
+        stripe_transaction_id=transaction.stripe_transaction_id,
+        amount=transaction.amount,
+        currency=transaction.currency,
+        form_fills_purchased=transaction.form_fills_purchased,
+        status=transaction.status,
+        description=transaction.description,
+        stripe_metadata=transaction.stripe_metadata,
+    )
+    
+    db.add(stripe_transaction)
+    
+    # Update user's billing info if transaction succeeded
+    if transaction.status == "succeeded":
+        billing_info = db.query(UserBillingInfo).filter_by(user_id=current_user["id"]).first()
+        
+        if not billing_info:
+            raise HTTPException(status_code=404, detail="Billing information not found")
+        
+        billing_info.total_amount_paid += transaction.amount
+        billing_info.form_fills_remaining += transaction.form_fills_purchased
+    
+    db.commit()
+    db.refresh(stripe_transaction)
+    
+    return StripeTransactionResponse(
+        id=stripe_transaction.id,
+        user_id=stripe_transaction.user_id,
+        stripe_transaction_id=stripe_transaction.stripe_transaction_id,
+        amount=stripe_transaction.amount,
+        currency=stripe_transaction.currency,
+        form_fills_purchased=stripe_transaction.form_fills_purchased,
+        status=stripe_transaction.status,
+        description=stripe_transaction.description,
+        created_at=stripe_transaction.created_at.isoformat() if stripe_transaction.created_at else None,
+    )
+
+
+@app.post("/billing/deduct-form-fills")
+def deduct_form_fills(
+    request_data: UpdateFormFillsRequest,
+    current_user: Annotated[Dict, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    """Deduct form fills from user's remaining balance."""
+    
+    billing_info = db.query(UserBillingInfo).filter_by(user_id=current_user["id"]).first()
+    
+    if not billing_info:
+        raise HTTPException(status_code=404, detail="Billing information not found")
+    
+    if billing_info.form_fills_remaining < request_data.form_fills_to_deduct:
+        raise HTTPException(status_code=400, detail="Insufficient form fills remaining")
+    
+    billing_info.form_fills_remaining -= request_data.form_fills_to_deduct
+    billing_info.form_fills_used += request_data.form_fills_to_deduct
+    
+    db.commit()
+    db.refresh(billing_info)
+    
+    return {
+        "form_fills_remaining": billing_info.form_fills_remaining,
+        "form_fills_used": billing_info.form_fills_used,
+        "message": f"Successfully deducted {request_data.form_fills_to_deduct} form fills",
+    }
+
+
+@app.get("/billing/transactions", response_model=list[StripeTransactionResponse])
+def get_transactions(
+    current_user: Annotated[Dict, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    """Get all transactions for the current user."""
+    transactions = (
+        db.query(StripeTransaction)
+        .filter_by(user_id=current_user["id"])
+        .order_by(StripeTransaction.created_at.desc())
+        .all()
+    )
+    
+    return [
+        StripeTransactionResponse(
+            id=t.id,
+            user_id=t.user_id,
+            stripe_transaction_id=t.stripe_transaction_id,
+            amount=t.amount,
+            currency=t.currency,
+            form_fills_purchased=t.form_fills_purchased,
+            status=t.status,
+            description=t.description,
+            created_at=t.created_at.isoformat() if t.created_at else None,
+        )
+        for t in transactions
+    ]
+
+
+@app.post("/billing/create-payment-intent", response_model=CreatePaymentIntentResponse)
+def create_payment_intent(
+    request_data: CreatePaymentIntentRequest,
+    current_user: Annotated[Dict, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    """Create a Stripe PaymentIntent for the user."""
+    
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Stripe is not configured")
+    
+    # Get or create customer
+    billing_info = db.query(UserBillingInfo).filter_by(user_id=current_user["id"]).first()
+    if not billing_info:
+        raise HTTPException(status_code=404, detail="Billing information not found")
+    
+    try:
+        # Create or retrieve Stripe customer
+        if not billing_info.stripe_customer_id:
+            customer = stripe.Customer.create(
+                email=current_user["email"],
+                name=f"{current_user.get('name', '')} {current_user.get('surname', '')}".strip(),
+                metadata={"user_id": current_user["id"]},
+            )
+            billing_info.stripe_customer_id = customer.id
+            db.commit()
+        
+        # Create PaymentIntent
+        amount_cents = int(request_data.amount_eur * 100)  # Stripe uses cents
+        intent = stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency="eur",
+            customer=billing_info.stripe_customer_id,
+            metadata={
+                "user_id": current_user["id"],
+                "form_fills_purchased": request_data.form_fills_purchased,
+            },
+        )
+        
+        return CreatePaymentIntentResponse(
+            client_secret=intent.client_secret,
+            payment_intent_id=intent.id,
+            amount_eur=request_data.amount_eur,
+            form_fills_purchased=request_data.form_fills_purchased,
+        )
+    except stripe.error.CardError as e:
+        raise HTTPException(status_code=400, detail=f"Card error: {e.user_message}")
+    except stripe.error.RateLimitError:
+        raise HTTPException(status_code=429, detail="Too many requests")
+    except stripe.error.AuthenticationError:
+        raise HTTPException(status_code=401, detail="Stripe authentication failed")
+    except stripe.error.APIConnectionError:
+        raise HTTPException(status_code=503, detail="Stripe service unavailable")
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
+
+
+@app.post("/billing/confirm-payment", response_model=StripeTransactionResponse)
+def confirm_payment(
+    request_data: ConfirmPaymentRequest,
+    current_user: Annotated[Dict, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    """Confirm payment and record transaction."""
+    
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Stripe is not configured")
+    
+    try:
+        # Retrieve the PaymentIntent
+        intent = stripe.PaymentIntent.retrieve(request_data.payment_intent_id)
+        
+        if intent.status != "succeeded":
+            raise HTTPException(status_code=400, detail=f"Payment not successful: {intent.status}")
+        
+        # Get user's billing info
+        billing_info = db.query(UserBillingInfo).filter_by(user_id=current_user["id"]).first()
+        if not billing_info:
+            raise HTTPException(status_code=404, detail="Billing information not found")
+        
+        # Check if transaction already recorded
+        existing = db.query(StripeTransaction).filter_by(
+            stripe_transaction_id=intent.id
+        ).first()
+        
+        if existing:
+            return StripeTransactionResponse(
+                id=existing.id,
+                user_id=existing.user_id,
+                stripe_transaction_id=existing.stripe_transaction_id,
+                amount=existing.amount,
+                currency=existing.currency,
+                form_fills_purchased=existing.form_fills_purchased,
+                status=existing.status,
+                description=existing.description,
+                created_at=existing.created_at.isoformat() if existing.created_at else None,
+            )
+        
+        # Get metadata
+        metadata = intent.get("metadata", {})
+        form_fills = int(metadata.get("form_fills_purchased", 0))
+        
+        # Create transaction record
+        stripe_transaction = StripeTransaction(
+            user_id=current_user["id"],
+            stripe_transaction_id=intent.id,
+            amount=intent.amount / 100,  # Convert from cents
+            currency=intent.currency.upper(),
+            form_fills_purchased=form_fills,
+            status="succeeded",
+            description=f"{form_fills} form fills",
+            stripe_metadata=dict(intent),
+        )
+        
+        db.add(stripe_transaction)
+        
+        # Update billing info
+        billing_info.total_amount_paid += stripe_transaction.amount
+        billing_info.form_fills_remaining += form_fills
+        
+        db.commit()
+        db.refresh(stripe_transaction)
+        
+        return StripeTransactionResponse(
+            id=stripe_transaction.id,
+            user_id=stripe_transaction.user_id,
+            stripe_transaction_id=stripe_transaction.stripe_transaction_id,
+            amount=stripe_transaction.amount,
+            currency=stripe_transaction.currency,
+            form_fills_purchased=stripe_transaction.form_fills_purchased,
+            status=stripe_transaction.status,
+            description=stripe_transaction.description,
+            created_at=stripe_transaction.created_at.isoformat() if stripe_transaction.created_at else None,
+        )
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error confirming payment: {str(e)}")

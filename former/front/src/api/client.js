@@ -8,7 +8,6 @@ function decodeToken(token) {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
-    
     const payload = JSON.parse(atob(parts[1]));
     return payload;
   } catch (e) {
@@ -20,11 +19,9 @@ function decodeToken(token) {
 function isTokenExpired(token) {
   const decoded = decodeToken(token);
   if (!decoded || !decoded.exp) return true;
-  
-  const expirationTime = decoded.exp * 1000; // exp is in seconds
+  const expirationTime = decoded.exp * 1000;
   const now = Date.now();
-  const bufferMs = 60 * 1000; // 60 second buffer before expiry
-  
+  const bufferMs = 60 * 1000;
   return now >= expirationTime - bufferMs;
 }
 
@@ -40,19 +37,14 @@ export function getAccessToken() {
 }
 
 export function clearTokens() {
-  console.log("Clearing tokens...");
   accessToken = null;
   refreshToken = null;
   sessionStorage.removeItem("access_token");
   sessionStorage.removeItem("refresh_token");
-  console.log("Tokens cleared. access_token in sessionStorage:", sessionStorage.getItem("access_token"));
 }
 
 async function refreshAccessToken() {
-  if (!refreshToken) {
-    throw new Error("No refresh token available");
-  }
-
+  if (!refreshToken) throw new Error("No refresh token available");
   try {
     const res = await fetch(`${BASE_URL}/auth/refresh`, {
       method: "POST",
@@ -60,14 +52,11 @@ async function refreshAccessToken() {
       credentials: "include",
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
-
     const body = await res.json().catch(() => ({}));
-
     if (!res.ok) {
       clearTokens();
       throw new Error(body?.detail ?? "Token refresh failed");
     }
-
     setTokens(body.access_token, body.refresh_token);
     return body.access_token;
   } catch (error) {
@@ -76,11 +65,17 @@ async function refreshAccessToken() {
   }
 }
 
+function normaliseDetail(detail) {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) return detail.map((e) => e.msg ?? e.message ?? JSON.stringify(e)).join(", ");
+  return JSON.stringify(detail);
+}
+
 async function request(path, options = {}) {
+  // Proactive refresh before request if token is expiring
   if (accessToken && isTokenExpired(accessToken) && refreshToken && path !== "/auth/refresh") {
     try {
-      const newAccessToken = await refreshAccessToken();
-      accessToken = newAccessToken;
+      accessToken = await refreshAccessToken();
     } catch (error) {
       console.error("Proactive token refresh failed:", error);
       throw error;
@@ -90,68 +85,28 @@ async function request(path, options = {}) {
   let headers = {
     "Content-Type": "application/json",
     ...options.headers,
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
   };
 
-  // Add Bearer token if available
-  if (accessToken) {
-    headers["Authorization"] = `Bearer ${accessToken}`;
-  }
+  const run = (hdrs) =>
+    fetch(`${BASE_URL}${path}`, { credentials: "include", ...options, headers: hdrs });
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers,
-    credentials: "include",
-    ...options,
-  });
+  let res = await run(headers);
+  let body = await res.json().catch(() => ({}));
 
-  const body = await res.json().catch(() => ({}));
-
+  // Reactive refresh on 401
   if (res.status === 401 && refreshToken && path !== "/auth/refresh") {
     try {
-      const newAccessToken = await refreshAccessToken();
-      headers["Authorization"] = `Bearer ${newAccessToken}`;
-      
-      // Retry the request with new token
-      const retryRes = await fetch(`${BASE_URL}${path}`, {
-        headers,
-        credentials: "include",
-        ...options,
-      });
-
-      const retryBody = await retryRes.json().catch(() => ({}));
-
-      if (!retryRes.ok) {
-        let message = retryBody?.detail ?? `HTTP ${retryRes.status}`;
-        if (typeof message === "object") {
-          if (Array.isArray(message)) {
-            message = message.map(err => err.msg || err.message || JSON.stringify(err)).join(", ");
-          } else {
-            message = JSON.stringify(message);
-          }
-        }
-        throw new Error(message);
-      }
-
-      return retryBody;
-    } catch (refreshError) {
-      // If refresh fails, user needs to login again
-      throw new Error("Session expired. Please login again.");
+      const newToken = await refreshAccessToken();
+      headers = { ...headers, Authorization: `Bearer ${newToken}` };
+      res = await run(headers);
+      body = await res.json().catch(() => ({}));
+    } catch {
+      throw new Error("Session expired. Please log in again.");
     }
   }
 
-  if (!res.ok) {
-    let message = body?.detail ?? `HTTP ${res.status}`;
-    
-    // Handle validation errors (array of objects) or other object responses
-    if (typeof message === 'object') {
-      if (Array.isArray(message)) {
-        message = message.map(err => err.msg || err.message || JSON.stringify(err)).join(', ');
-      } else {
-        message = JSON.stringify(message);
-      }
-    }
-    
-    throw new Error(message);
-  }
+  if (!res.ok) throw new Error(normaliseDetail(body?.detail ?? `HTTP ${res.status}`));
 
   return body;
 }
@@ -159,11 +114,10 @@ async function request(path, options = {}) {
 export const api = {
   health: () => request("/health"),
 
-  // Auth
+  // ── Auth ───────────────────────────────────────────────
   me: () => request("/auth/me"),
+
   logout: async () => {
-    console.log("Logging out...");
-    // Simple fetch without the complex request wrapper to avoid token refresh logic
     try {
       await fetch(`${BASE_URL}/auth/logout`, {
         method: "POST",
@@ -174,36 +128,43 @@ export const api = {
       console.log("Logout API call failed:", e.message);
     } finally {
       clearTokens();
-      console.log("Logout complete");
     }
   },
+
   loginUrl: () => `${BASE_URL}/auth/google`,
+
   loginUser: async (credentials) => {
-    const response = await request("/auth/login", {
-      method: "POST",
-      body: JSON.stringify(credentials),
-    });
-    if (response.tokens) {
-      setTokens(response.tokens.access_token, response.tokens.refresh_token);
-    }
-    return response;
+    const res = await request("/auth/login", { method: "POST", body: JSON.stringify(credentials) });
+    if (res.tokens) setTokens(res.tokens.access_token, res.tokens.refresh_token);
+    return res;
   },
+
   registerUser: async (credentials) => {
-    const response = await request("/auth/register", {
-      method: "POST",
-      body: JSON.stringify(credentials),
-    });
-    if (response.tokens) {
-      setTokens(response.tokens.access_token, response.tokens.refresh_token);
-    }
-    return response;
+    const res = await request("/auth/register", { method: "POST", body: JSON.stringify(credentials) });
+    if (res.tokens) setTokens(res.tokens.access_token, res.tokens.refresh_token);
+    return res;
   },
-  // DAG
-  trigger: (payload) =>
-    request("/airflow/trigger", {
+
+  // ── Billing ────────────────────────────────────────────
+  getBillingInfo: () => request("/billing/info"),
+
+  getTransactions: () => request("/billing/transactions"),
+
+  createTransaction: (payload) =>
+    request("/billing/transaction", { method: "POST", body: JSON.stringify(payload) }),
+
+  deductFormFills: (form_fills_to_deduct) =>
+    request("/billing/deduct-form-fills", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ form_fills_to_deduct }),
     }),
 
+  // ── DAG ────────────────────────────────────────────────
+  trigger: (payload) =>
+    request("/airflow/trigger", { method: "POST", body: JSON.stringify(payload) }),
+
   getRuns: () => request("/airflow/runs"),
+
+  cancelRun: (dag_run_id) =>
+    request(`/airflow/runs/${dag_run_id}/cancel`, { method: "POST" }),
 };

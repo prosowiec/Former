@@ -9,7 +9,7 @@ const TABS = [
 ];
 
 export function useDashboard() {
-  const { runs, loading: runsLoading, addRun, stats } = useRuns();
+  const { runs, loading: runsLoading, addRun, updateRun, stats } = useRuns();
   const [successBanner, setSuccessBanner] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
 
@@ -37,18 +37,19 @@ export function useDashboard() {
     return true;
   });
 
+  function handleRunCancelled(dag_run_id) {
+    updateRun(dag_run_id, { state: "failed" });
+  }
+
   return {
-    // Runs
     filteredRuns,
     runsLoading,
     stats,
-    // Tab
     TABS,
     activeTab,
     setActiveTab,
-    // Trigger
     handleTriggerSuccess,
-    // Banner
+    handleRunCancelled,
     successBanner,
   };
 }

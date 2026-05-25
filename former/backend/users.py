@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from passlib.context import CryptContext
 
 from .db import SessionLocal
-from .models import User
+from .models import User, UserBillingInfo
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -75,6 +75,16 @@ def create_user(
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
+        
+        # Create billing info with default 10 form fills
+        billing_info = UserBillingInfo(
+            user_id=new_user.id,
+            total_amount_paid=0.0,
+            form_fills_remaining=10,
+            form_fills_used=0,
+        )
+        db.add(billing_info)
+        db.commit()
                 
         return {
             "id": str(new_user.id),
@@ -129,6 +139,15 @@ def get_or_create_oauth_user(
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    
+    billing_info = UserBillingInfo(
+        user_id=new_user.id,
+        total_amount_paid=0.0,
+        form_fills_remaining=10,
+        form_fills_used=0,
+    )
+    db.add(billing_info)
+    db.commit()
     
     return {
         "id": str(new_user.id),

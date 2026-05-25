@@ -74,3 +74,58 @@ class AirflowRunResponse(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+
+class UserBillingInfoResponse(BaseModel):
+    id: str
+    user_id: str
+    total_amount_paid: float
+    form_fills_remaining: int
+    form_fills_used: int
+    stripe_customer_id: Optional[str] = None
+    stripe_subscription_id: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class StripeTransactionResponse(BaseModel):
+    id: str
+    user_id: str
+    stripe_transaction_id: str
+    amount: float
+    currency: str
+    form_fills_purchased: int
+    status: str
+    description: Optional[str] = None
+    created_at: str
+
+
+class StripeTransactionRequest(BaseModel):
+    stripe_transaction_id: str
+    amount: float
+    currency: str = "USD"
+    form_fills_purchased: int
+    status: str
+    description: Optional[str] = None
+    stripe_metadata: Optional[Dict] = None
+
+
+class UpdateFormFillsRequest(BaseModel):
+    form_fills_to_deduct: int = Field(1, ge=1)
+
+
+class CreatePaymentIntentRequest(BaseModel):
+    amount_eur: float = Field(gt=0)  # Amount in EUR
+    form_fills_purchased: int = Field(gt=0)
+
+
+class CreatePaymentIntentResponse(BaseModel):
+    client_secret: str
+    payment_intent_id: str
+    amount_eur: float
+    form_fills_purchased: int
+
+
+class ConfirmPaymentRequest(BaseModel):
+    payment_intent_id: str
+    stripe_transaction_id: str  # Optional payment method id or charge id
