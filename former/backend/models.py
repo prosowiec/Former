@@ -84,6 +84,7 @@ class AirflowTriggerInternalRequest(Base):
     risk_tolerance = Column(String(50), nullable=True)
     verbosity = Column(String(50), nullable=True)
     formality = Column(String(50), nullable=True)
+    state = Column(String(50), default="active", nullable=False)  # active, cancelled
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 class AirflowProgress(Base):

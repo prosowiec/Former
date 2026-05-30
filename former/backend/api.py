@@ -15,9 +15,9 @@ from sqlalchemy.orm import Session
 from former.backend.models import AirflowProgress, AirflowTriggerInternalRequest, UserBillingInfo, StripeTransaction, User
 
 
-from .auth import build_google_login_url, get_google_user_from_code, create_token_pair, verify_token, create_access_token
+from .auth import build_google_login_url, get_google_user_from_code, create_token_pair, verify_token
 from ..config import FRONTEND_URL, SECRET_KEY, STRIPE_SECRET_KEY
-from .dagOperations import trigger_airflow_dag
+from .dagOperations import trigger_airflow_dag, cancel_airflow_dag
 from .schemas import (
     AirflowRunResponse,
     AirflowTriggerRequest,
@@ -311,6 +311,7 @@ def list_airflow_runs(
     result = []
     for run in runs:
         progress = progress_by_run.get(run.run_id)
+        state = run.state if run.state == "cancelled" else get_progress_state(progress)
         result.append(
             {
                 "dag_id": run.dag_id,
@@ -320,7 +321,7 @@ def list_airflow_runs(
                 "base_interval_minutes": run.base_interval_minutes,
                 "interval_jitter_minutes": run.interval_jitter_minutes,
                 "created_at": run.created_at.isoformat() if run.created_at else datetime.utcnow().isoformat(),
-                "state": get_progress_state(progress),
+                "state": state,
                 "run_name": run.run_name,
                 "age_profile": run.age_profile,
                 "political_leaning": run.political_leaning,
@@ -336,7 +337,7 @@ def list_airflow_runs(
                 else None,
             }
         )
-
+    print(result)
     return result
 
 
@@ -394,7 +395,66 @@ def airflow_trigger(
     )
 
 
-# ============ BILLING ENDPOINTS ============
+@app.post("/airflow/runs/{dag_run_id}/cancel")
+def cancel_airflow_run(
+    dag_run_id: str,
+    current_user: Annotated[Dict, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    """Cancel an Airflow DAG run. If it's a parent DAG, cancels all child DAG runs too. 
+    Requires JWT authentication."""
+    
+    # Verify that the run belongs to the current user
+    run = (
+        db.query(AirflowTriggerInternalRequest)
+        .filter_by(run_id=dag_run_id, user_email=current_user["email"])
+        .first()
+    )
+    
+    if not run:
+        raise HTTPException(
+            status_code=404,
+            detail="Run not found or you don't have permission to cancel it"
+        )
+    
+    try:
+        response = cancel_airflow_dag(run.dag_id, dag_run_id, cancel_children=True)
+        
+        # Update the state in the database
+        run.state = "cancelled"
+        db.commit()
+        
+        # If this is a parent DAG, also update child DAG states in database
+        if run.dag_id == "form_filler_plan":
+            child_runs = (
+                db.query(AirflowTriggerInternalRequest)
+                .filter(
+                    AirflowTriggerInternalRequest.run_id.like(f"{dag_run_id}__item_%"),
+                    AirflowTriggerInternalRequest.user_email == current_user["email"]
+                )
+                .all()
+            )
+            for child_run in child_runs:
+                child_run.state = "cancelled"
+            db.commit()
+        
+        return {
+            "dag_run_id": dag_run_id,
+            "state": "cancelled",
+            "message": "Run cancelled successfully",
+            "airflow_response": response,
+        }
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=exc.response.status_code,
+            detail=f"Airflow API error: {exc.response.text}"
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to cancel run: {exc}"
+        )
+
 
 @app.get("/billing/info", response_model=UserBillingInfoResponse)
 def get_billing_info(

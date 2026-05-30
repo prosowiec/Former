@@ -259,96 +259,96 @@ body {
   flex-shrink: 0;
 }
 
-/* Cancel button */
+/* Cancel button — always visible for active runs */
 .runs-table__actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-}
-
-.run-cancel--idle {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 11px;
-  color: var(--muted);
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  transition: color 0.12s, background 0.12s;
-  padding: 0;
-  opacity: 0;
 }
 
-.runs-table__row--btn:hover .run-cancel--idle { opacity: 1; }
-.run-cancel--idle:hover { color: var(--red); background: #fff0f0; }
-
-.run-cancel--loading {
-  font-size: 10px;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  white-space: nowrap;
-}
-
-.run-cancel--confirm {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.run-cancel__yes {
-  background: var(--red);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
+.run-cancel-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 500;
-  padding: 3px 8px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.run-cancel__no {
-  background: var(--bg);
   color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-family: var(--font-sans);
-  font-size: 11px;
-  padding: 3px 8px;
   cursor: pointer;
+  padding: 3px 8px;
   white-space: nowrap;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
 }
-.run-cancel__no:hover { color: var(--text); border-color: var(--accent); }
+.run-cancel-btn:hover { border-color: var(--red); color: var(--red); background: #fff5f5; }
 
-/* Modal header actions */
-.modal__header-actions {
+/* Cancel confirm modal */
+.cancel-modal { max-width: 380px; }
+
+.cancel-modal__desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.cancel-modal__desc strong { color: var(--text); font-weight: 500; }
+
+.cancel-modal__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.cancel-modal__keep {
+  height: 36px;
+  padding: 0 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.cancel-modal__keep:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+.cancel-modal__keep:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.cancel-modal__confirm {
+  height: 36px;
+  padding: 0 16px;
+  background: var(--red);
+  border: none;
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
+  transition: opacity 0.12s;
 }
+.cancel-modal__confirm:hover:not(:disabled) { opacity: 0.85; }
+.cancel-modal__confirm:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* Cancel in modal — styled as a small danger button */
-.modal__header-actions .run-cancel--idle {
-  opacity: 1;
-  width: auto;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-family: var(--font-sans);
+/* Cancel button inside detail modal header */
+.modal__cancel-btn {
+  height: 28px;
+  padding: 0 12px;
+  background: none;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: 12px;
   color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
 }
-.modal__header-actions .run-cancel--idle:hover {
-  background: #fff0f0;
-  border-color: var(--red);
-  color: var(--red);
-}
-.modal__header-actions .run-cancel--idle::before { content: "Cancel run"; font-size: 12px; }
+.modal__cancel-btn:hover { border-color: var(--red); color: var(--red); background: #fff5f5; }
+
+/* Modal header actions group */
+.modal__header-actions { display: flex; align-items: center; gap: 8px; }
 
 /* ── Runs empty ──────────────────────────────────────────── */
 .runs-table__name-cell {
@@ -416,19 +416,19 @@ body {
   box-shadow: 0 0 0 3px rgba(0,92,197,0.1);
 }
 
-.stage-step--done   { border-color: var(--green); background: var(--green); color: #fff; }
-.stage-step--failed { border-color: var(--red);   background: var(--red);   color: #fff; }
+.stage-step--done      { border-color: var(--green);  background: var(--green);  color: #fff; }
+.stage-step--failed    { border-color: var(--red);    background: var(--red);    color: #fff; }
+.stage-step--cancelled { border-color: var(--muted);  background: var(--muted);  color: #fff; }
 
-.stage-step-label { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.stage-step-label--cancelled { color: var(--muted); }
 
-.stage-connector {
-  width: 16px;
-  height: 1.5px;
-  background: var(--border);
-  margin: 0 2px;
-  flex-shrink: 0;
-  transition: background 0.2s;
+.stage-step-label {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  min-width: 50px;
 }
+
 .stage-connector--done { background: var(--green); }
 
 /* ── Trigger form ────────────────────────────────────────── */

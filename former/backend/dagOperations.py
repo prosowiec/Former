@@ -69,3 +69,81 @@ def trigger_airflow_dag(
         response = client.post(url, json=payload)
         response.raise_for_status()
         return response.json()
+
+
+def get_child_dag_runs(parent_run_id: str) -> list:
+    """Get all child DAG runs triggered by a parent DAG run."""
+    access_token = get_airflow_access_token()
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    # Query for child DAGs that match the parent run pattern
+    # Child run IDs follow pattern: {parent_run_id}__item_{i}
+    child_runs = []
+    
+    try:
+        # Get all form_filler_dag runs that match the parent pattern
+        url = f"{AIRFLOW_BASE_URL}/dags/form_filler_dag/dagRuns"
+        with httpx.Client(headers=headers, timeout=30) as client:
+            response = client.get(url)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Filter for child runs matching this parent
+            for run in data.get("dag_runs", []):
+                if run["dag_run_id"].startswith(f"{parent_run_id}__item_"):
+                    child_runs.append(run)
+    except Exception as e:
+        print(f"Warning: Could not fetch child DAG runs: {e}")
+    
+    return child_runs
+
+
+def cancel_airflow_dag(dag_id: str, run_id: str, cancel_children: bool = True) -> Dict:
+    """Cancel an Airflow DAG run by setting its state to failed.
+    
+    If cancel_children is True and this is a parent DAG, also cancel all child DAG runs.
+    """
+    access_token = get_airflow_access_token()
+    url = f"{AIRFLOW_BASE_URL}/dags/{dag_id}/dagRuns/{run_id}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    payload = {"state": "failed"}
+    
+    response_data = {}
+
+    # If this is a parent DAG (form_filler_plan), cancel all child DAGs
+    if cancel_children and dag_id == "form_filler_plan":
+        print(f"Cancelling child DAG runs for parent run: {run_id}")
+        child_runs = get_child_dag_runs(run_id)
+        response_data["cancelled_children"] = []
+        
+        for child_run in child_runs:
+            try:
+                child_dag_id = child_run["dag_id"]
+                child_run_id = child_run["dag_run_id"]
+                print(f"  Cancelling child DAG: {child_dag_id}/{child_run_id}")
+                
+                child_url = f"{AIRFLOW_BASE_URL}/dags/{child_dag_id}/dagRuns/{child_run_id}"
+                with httpx.Client(headers=headers, timeout=30) as client:
+                    client.patch(child_url, json=payload)
+                
+                response_data["cancelled_children"].append({
+                    "dag_id": child_dag_id,
+                    "run_id": child_run_id,
+                    "status": "cancelled"
+                })
+            except Exception as e:
+                print(f"  Error cancelling child DAG run {child_run['dag_run_id']}: {e}")
+                response_data["cancelled_children"].append({
+                    "dag_id": child_run["dag_id"],
+                    "run_id": child_run["dag_run_id"],
+                    "status": "error",
+                    "error": str(e)
+                })
+    
+    # Cancel the parent DAG
+    with httpx.Client(headers=headers, timeout=30) as client:
+        response = client.patch(url, json=payload)
+        response.raise_for_status()
+        response_data["parent"] = response.json()
+    
+    return response_data

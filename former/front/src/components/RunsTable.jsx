@@ -3,11 +3,12 @@ import RunStageIndicator from "./RunStageIndicator";
 import { api } from "../api/client";
 
 const STATE_COLORS = {
-  queued:  "var(--yellow)",
-  running: "var(--blue)",
-  success: "var(--green)",
-  failed:  "var(--red)",
-  unknown: "var(--muted)",
+  queued:    "var(--yellow)",
+  running:   "var(--blue)",
+  success:   "var(--green)",
+  failed:    "var(--red)",
+  cancelled: "var(--muted)",
+  unknown:   "var(--muted)",
 };
 
 const AXIS_LABELS = {
@@ -44,44 +45,59 @@ function humanize(val) {
   return val.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// ── Cancel button ────────────────────────────────────────────
-function CancelButton({ run, onCancelled }) {
-  const [state, setState] = useState("idle"); // idle | confirming | loading
+// ── Cancel confirm modal ─────────────────────────────────────
+function CancelModal({ run, onClose, onConfirmed }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState(null);
 
-  if (!CANCELLABLE.has(run.state)) return null;
-
-  async function doCancel(e) {
-    e.stopPropagation();
-    setState("loading");
+  async function doCancel() {
+    setError(null);
+    setLoading(true);
     try {
       await api.cancelRun(run.dag_run_id);
-      onCancelled?.(run.dag_run_id);
-    } catch {
-      setState("confirming"); // revert to confirm on error
+      onConfirmed(run.dag_run_id);
+    } catch (err) {
+      setError(err.message ?? "Failed to cancel run.");
+      setLoading(false);
     }
   }
 
-  if (state === "loading") {
-    return <span className="run-cancel run-cancel--loading">Cancelling…</span>;
-  }
-
-  if (state === "confirming") {
-    return (
-      <span className="run-cancel run-cancel--confirm" onClick={(e) => e.stopPropagation()}>
-        <button className="run-cancel__yes" onClick={doCancel}>Cancel run</button>
-        <button className="run-cancel__no" onClick={(e) => { e.stopPropagation(); setState("idle"); }}>Keep</button>
-      </span>
-    );
-  }
-
   return (
-    <button
-      className="run-cancel run-cancel--idle"
-      onClick={(e) => { e.stopPropagation(); setState("confirming"); }}
-      title="Cancel this run"
-    >
-      ✕
-    </button>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal cancel-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal__header">
+          <div className="modal__title-group">
+            <span className="modal__title">Cancel run?</span>
+          </div>
+          <button className="modal__close" onClick={onClose} aria-label="Close">
+            <CloseIcon />
+          </button>
+        </div>
+
+        <div className="modal__body">
+          <p className="cancel-modal__desc">
+            This will stop <strong>{run.run_name || run.dag_run_id}</strong>.
+            Any in-progress form fills may be left incomplete.
+          </p>
+
+          {error && (
+            <div className="banner banner--error">
+              <span className="banner__label">Error</span>
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="cancel-modal__actions">
+            <button className="cancel-modal__keep" onClick={onClose} disabled={loading}>
+              Keep running
+            </button>
+            <button className="cancel-modal__confirm" onClick={doCancel} disabled={loading}>
+              {loading ? <span className="spinner" /> : "Yes, cancel"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -89,9 +105,7 @@ function CancelButton({ run, onCancelled }) {
 function ExecBadge({ run }) {
   const total     = run.num_executions ?? 1;
   const completed = run.progress?.completed ?? (run.state === "success" ? total : 0);
-
   if (total <= 1) return null;
-
   return (
     <span className="exec-badge" title={`${completed} of ${total} executions done`}>
       {completed}/{total}
@@ -100,11 +114,11 @@ function ExecBadge({ run }) {
 }
 
 // ── Run detail modal ─────────────────────────────────────────
-function RunModal({ run, onClose, onCancelled }) {
+function RunModal({ run, onClose, onCancelRequest }) {
   const personalityAxes = ["age_profile", "political_leaning", "risk_tolerance", "verbosity", "formality"];
   const hasPersonality  = personalityAxes.some((k) => run[k]);
-  const total           = run.num_executions ?? 1;
-  const completed       = run.progress?.completed ?? (run.state === "success" ? total : 0);
+  const total           = run.num_executions ?? 0;
+  const completed       = run.progress?.numberOfSuccessfulRuns ?? (run.state === "success" ? total : 0);
   const pct             = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   return (
@@ -120,7 +134,12 @@ function RunModal({ run, onClose, onCancelled }) {
           </div>
           <div className="modal__header-actions">
             {CANCELLABLE.has(run.state) && (
-              <CancelButton run={run} onCancelled={(id) => { onCancelled?.(id); onClose(); }} />
+              <button
+                className="modal__cancel-btn"
+                onClick={() => { onClose(); onCancelRequest(run); }}
+              >
+                Cancel run
+              </button>
             )}
             <button className="modal__close" onClick={onClose} aria-label="Close">
               <CloseIcon />
@@ -206,7 +225,8 @@ function CloseIcon() {
 
 // ── Main table ───────────────────────────────────────────────
 export default function RunsTable({ runs, loading, onRunCancelled }) {
-  const [selected, setSelected] = useState(null);
+  const [selected,     setSelected]     = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
 
   if (loading) return <div className="runs-empty">Loading runs…</div>;
 
@@ -219,6 +239,11 @@ export default function RunsTable({ runs, loading, onRunCancelled }) {
     );
   }
 
+  function handleCancelConfirmed(dag_run_id) {
+    setCancelTarget(null);
+    onRunCancelled?.(dag_run_id);
+  }
+
   return (
     <>
       <div className="runs-table">
@@ -227,49 +252,65 @@ export default function RunsTable({ runs, loading, onRunCancelled }) {
           <span>Progress</span>
           <span>Status</span>
           <span>Started</span>
-          <span></span>{/* cancel col */}
+          <span />
         </div>
 
-        {runs.map((run) => (
-          <button
-            key={run.dag_run_id ?? run.id}
-            className="runs-table__row runs-table__row--btn"
-            onClick={() => setSelected(run)}
-          >
-            {/* Name + URL + exec count */}
-            <div className="runs-table__name-cell">
-              <div className="runs-table__name-row">
-                <span className="runs-table__name">{run.run_name || "—"}</span>
-                <ExecBadge run={run} />
+        {runs.map((run) => {
+          const cancellable = CANCELLABLE.has(run.state);
+          return (
+            <button
+              key={run.dag_run_id ?? run.id}
+              className="runs-table__row runs-table__row--btn"
+              onClick={() => setSelected(run)}
+            >
+              <div className="runs-table__name-cell">
+                <div className="runs-table__name-row">
+                  <span className="runs-table__name">{run.run_name || "—"}</span>
+                  <ExecBadge run={run} />
+                </div>
+                <span className="runs-table__url mono" title={run.form_url}>
+                  {truncate(run.form_url)}
+                </span>
               </div>
-              <span className="runs-table__url mono" title={run.form_url}>
-                {truncate(run.form_url)}
+
+              <RunStageIndicator state={run.state} />
+
+              <span className="state-badge" style={{ color: STATE_COLORS[run.state] ?? STATE_COLORS.unknown }}>
+                {run.state}
               </span>
-            </div>
 
-            <RunStageIndicator state={run.state} />
+              <span className="runs-table__date">
+                {formatDate(run.created_at ?? run.logical_date)}
+              </span>
 
-            <span className="state-badge" style={{ color: STATE_COLORS[run.state] ?? STATE_COLORS.unknown }}>
-              {run.state}
-            </span>
-
-            <span className="runs-table__date">
-              {formatDate(run.created_at ?? run.logical_date)}
-            </span>
-
-            {/* Cancel — stops row click propagation internally */}
-            <span className="runs-table__actions" onClick={(e) => e.stopPropagation()}>
-              <CancelButton run={run} onCancelled={onRunCancelled} />
-            </span>
-          </button>
-        ))}
+              <span className="runs-table__actions" onClick={(e) => e.stopPropagation()}>
+                {cancellable && (
+                  <button
+                    className="run-cancel-btn"
+                    onClick={(e) => { e.stopPropagation(); setCancelTarget(run); }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {selected && (
         <RunModal
           run={selected}
           onClose={() => setSelected(null)}
-          onCancelled={(id) => { onRunCancelled?.(id); setSelected(null); }}
+          onCancelRequest={(run) => { setSelected(null); setCancelTarget(run); }}
+        />
+      )}
+
+      {cancelTarget && (
+        <CancelModal
+          run={cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          onConfirmed={handleCancelConfirmed}
         />
       )}
     </>

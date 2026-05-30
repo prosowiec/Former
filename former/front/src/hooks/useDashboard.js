@@ -33,12 +33,12 @@ export function useDashboard() {
   const filteredRuns = runs.filter((r) => {
     if (activeTab === "running") return r.state === "running" || r.state === "queued";
     if (activeTab === "done")    return r.state === "success";
-    if (activeTab === "failed")  return r.state === "failed";
+    if (activeTab === "failed")  return r.state === "failed" || r.state === "cancelled";
     return true;
   });
 
   function handleRunCancelled(dag_run_id) {
-    updateRun(dag_run_id, { state: "failed" });
+    updateRun(dag_run_id, { state: "cancelled" });
   }
 
   return {

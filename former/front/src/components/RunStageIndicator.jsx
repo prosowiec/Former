@@ -1,11 +1,12 @@
 const STAGES = ["pending", "running", "done"];
 
 const STATE_MAP = {
-  queued: { stage: "pending", failed: false },
-  running: { stage: "running", failed: false },
-  success: { stage: "done", failed: false },
-  failed: { stage: "running", failed: true },
-  unknown: { stage: "pending", failed: false },
+  queued:    { stage: "pending", failed: false, cancelled: false },
+  running:   { stage: "running", failed: false, cancelled: false },
+  success:   { stage: "done",    failed: false, cancelled: false },
+  failed:    { stage: "running", failed: true,  cancelled: false },
+  cancelled: { stage: "running", failed: false, cancelled: true  },
+  unknown:   { stage: "pending", failed: false, cancelled: false },
 };
 
 const STAGE_LABELS = {
@@ -15,20 +16,24 @@ const STAGE_LABELS = {
 };
 
 export default function RunStageIndicator({ state = "unknown" }) {
-  const { stage, failed } = STATE_MAP[state] ?? STATE_MAP.unknown;
+  const { stage, failed, cancelled } = STATE_MAP[state] ?? STATE_MAP.unknown;
   const currentIndex = STAGES.indexOf(stage);
 
   return (
     <div className="stage-indicator">
       {STAGES.map((s, i) => {
         const isActive = i === currentIndex;
-        const isDone = i < currentIndex || (s === "done" && stage === "done");
-        const isFailed = failed && isActive;
+        const isDone   = i < currentIndex || (s === "done" && stage === "done");
+        const isFailed = (failed || cancelled) && isActive;
 
         let cls = "stage-step";
-        if (isFailed) cls += " stage-step--failed";
-        else if (isDone) cls += " stage-step--done";
-        else if (isActive) cls += " stage-step--active";
+        if (cancelled && isActive) cls += " stage-step--cancelled";
+        else if (isFailed)         cls += " stage-step--failed";
+        else if (isDone)           cls += " stage-step--done";
+        else if (isActive)         cls += " stage-step--active";
+
+        const label    = (cancelled && isActive) ? "Cancelled" : STAGE_LABELS[s];
+        const labelCls = `stage-step-label${cancelled && isActive ? " stage-step-label--cancelled" : ""}`;
 
         return (
           <div className="stage-step-wrapper" key={s}>
@@ -36,7 +41,7 @@ export default function RunStageIndicator({ state = "unknown" }) {
               {isDone && !isFailed ? <CheckIcon /> : null}
               {isFailed ? <XIcon /> : null}
             </div>
-            <span className="stage-step-label">{STAGE_LABELS[s]}</span>
+            <span className={labelCls}>{label}</span>
             {i < STAGES.length - 1 && (
               <div className={`stage-connector${isDone ? " stage-connector--done" : ""}`} />
             )}
