@@ -1,10 +1,19 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
 import httpx
+from sqlalchemy import create_engine, text
 
-from former.config import AIRFLOW_HOST, AIRFLOW_PASSWORD, AIRFLOW_USERNAME, AIRFLOW_BASE_URL
+from former.config import (
+    AIRFLOW_HOST, 
+    AIRFLOW_PASSWORD, 
+    AIRFLOW_USERNAME, 
+    AIRFLOW_BASE_URL,
+    AIRFLOW_DB_URI
+)
 
+db_engine = create_engine(AIRFLOW_DB_URI)
 
 def get_airflow_access_token() -> str:
     token_url = f"{AIRFLOW_HOST}/auth/token"
@@ -14,10 +23,7 @@ def get_airflow_access_token() -> str:
         response = client.post(token_url, json=payload)
         response.raise_for_status()
         token_data = response.json()
-        access_token = token_data.get("access_token")
-        return access_token
-
-
+        return token_data.get("access_token")
 
 def build_dag_run_payload(
     form_url: str,
@@ -39,10 +45,7 @@ def build_dag_run_payload(
         payload["dag_run_id"] = run_id
 
     payload["logical_date"] = (logical_date or datetime.now(timezone.utc)).isoformat()
-
     return payload
-
-
 
 def trigger_airflow_dag(
     form_url: str,
@@ -57,12 +60,7 @@ def trigger_airflow_dag(
     url = f"{AIRFLOW_BASE_URL}/dags/{dag_id}/dagRuns"
     headers = {"Authorization": f"Bearer {access_token}"}
     payload = build_dag_run_payload(
-        form_url,
-        run_id,
-        num_executions,
-        base_interval_minutes,
-        interval_jitter_minutes,
-        logical_date,
+        form_url, run_id, num_executions, base_interval_minutes, interval_jitter_minutes, logical_date
     )
 
     with httpx.Client(headers=headers, timeout=30) as client:
@@ -71,79 +69,104 @@ def trigger_airflow_dag(
         return response.json()
 
 
-def get_child_dag_runs(parent_run_id: str) -> list:
-    """Get all child DAG runs triggered by a parent DAG run."""
-    access_token = get_airflow_access_token()
-    headers = {"Authorization": f"Bearer {access_token}"}
-    
-    # Query for child DAGs that match the parent run pattern
-    # Child run IDs follow pattern: {parent_run_id}__item_{i}
+def _fetch_child_runs_from_db(parent_run_id: str) -> list:
+    """Synchronous helper to execute the SQL query."""
     child_runs = []
     
-    try:
-        # Get all form_filler_dag runs that match the parent pattern
-        url = f"{AIRFLOW_BASE_URL}/dags/form_filler_dag/dagRuns"
-        with httpx.Client(headers=headers, timeout=30) as client:
-            response = client.get(url)
-            response.raise_for_status()
-            data = response.json()
-            
-            # Filter for child runs matching this parent
-            for run in data.get("dag_runs", []):
-                if run["dag_run_id"].startswith(f"{parent_run_id}__item_"):
-                    child_runs.append(run)
-    except Exception as e:
-        print(f"Warning: Could not fetch child DAG runs: {e}")
+    query = text("""
+        SELECT dag_id, run_id, state 
+        FROM dag_run 
+        WHERE dag_id = 'form_filler_dag' 
+          AND run_id LIKE :pattern
+    """)
     
+    try:
+        with db_engine.connect() as conn:
+            result = conn.execute(query, {"pattern": f"{parent_run_id}__item_%"})
+            
+            for row in result:
+                child_runs.append({
+                    "dag_run_id": row.run_id,
+                    "state": row.state
+                })
+    except Exception as e:
+        print(f"Warning: Could not fetch child DAG runs from DB: {e}")
+        
     return child_runs
 
 
-def cancel_airflow_dag(dag_id: str, run_id: str, cancel_children: bool = True) -> Dict:
-    """Cancel an Airflow DAG run by setting its state to failed.
-    
+async def get_child_dag_runs(parent_run_id: str, client) -> list:
+    """Get all child DAG runs by querying the Airflow database directly."""    
+    # We use asyncio.to_thread to prevent the synchronous SQLAlchemy 
+    # connection from blocking your async HTTP operations
+    return await asyncio.to_thread(_fetch_child_runs_from_db, parent_run_id)
+
+
+async def cancel_child(child_run, client, payload):
+    try:
+        child_dag_id = "form_filler_dag"
+        child_run_id = child_run.get("dag_run_id")
+
+        if not child_run_id:
+            print(f"Warning: Could not find dag_run_id in child run: {child_run}")
+            return None
+
+        child_url = f"{AIRFLOW_BASE_URL}/dags/{child_dag_id}/dagRuns/{child_run_id}"
+        print(f"Cancelling child DAG: {child_dag_id}/{child_run_id}")
+
+        response = await client.patch(child_url, json=payload)
+        response.raise_for_status()
+
+        print(f"Successfully cancelled: {child_run_id}")
+        return {
+            "dag_id": child_dag_id,
+            "run_id": child_run_id,
+            "status": "cancelled",
+        }
+
+    except Exception as e:
+        print(f"Error cancelling child DAG run: {e}")
+        return {
+            "dag_id": "form_filler_dag",
+            "run_id": child_run.get("dag_run_id", "unknown"),
+            "status": "error",
+            "error": str(e),
+        }
+                    
+async def cancel_airflow_dag(dag_id: str, run_id: str, cancel_children: bool = True) -> Dict:
+    """
+    Cancel an Airflow DAG run by setting its state to failed.
     If cancel_children is True and this is a parent DAG, also cancel all child DAG runs.
     """
     access_token = get_airflow_access_token()
-    url = f"{AIRFLOW_BASE_URL}/dags/{dag_id}/dagRuns/{run_id}"
     headers = {"Authorization": f"Bearer {access_token}"}
     payload = {"state": "failed"}
-    
+
     response_data = {}
 
-    # If this is a parent DAG (form_filler_plan), cancel all child DAGs
-    if cancel_children and dag_id == "form_filler_plan":
-        print(f"Cancelling child DAG runs for parent run: {run_id}")
-        child_runs = get_child_dag_runs(run_id)
-        response_data["cancelled_children"] = []
-        
-        for child_run in child_runs:
-            try:
-                child_dag_id = child_run["dag_id"]
-                child_run_id = child_run["dag_run_id"]
-                print(f"  Cancelling child DAG: {child_dag_id}/{child_run_id}")
-                
-                child_url = f"{AIRFLOW_BASE_URL}/dags/{child_dag_id}/dagRuns/{child_run_id}"
-                with httpx.Client(headers=headers, timeout=30) as client:
-                    client.patch(child_url, json=payload)
-                
-                response_data["cancelled_children"].append({
-                    "dag_id": child_dag_id,
-                    "run_id": child_run_id,
-                    "status": "cancelled"
-                })
-            except Exception as e:
-                print(f"  Error cancelling child DAG run {child_run['dag_run_id']}: {e}")
-                response_data["cancelled_children"].append({
-                    "dag_id": child_run["dag_id"],
-                    "run_id": child_run["dag_run_id"],
-                    "status": "error",
-                    "error": str(e)
-                })
-    
-    # Cancel the parent DAG
-    with httpx.Client(headers=headers, timeout=30) as client:
-        response = client.patch(url, json=payload)
+    async with httpx.AsyncClient(headers=headers, timeout=30) as client:
+        parent_url = f"{AIRFLOW_BASE_URL}/dags/{dag_id}/dagRuns/{run_id}"
+
+        response = await client.patch(parent_url, json=payload)
         response.raise_for_status()
+
+        if cancel_children and dag_id == "form_filler_plan":
+            print(f"Cancelling child DAG runs for parent run: {run_id}")
+
+            child_runs = await get_child_dag_runs(run_id, client)
+            response_data["cancelled_children"] = []
+            print(f"Found {len(child_runs)} child runs to cancel.")
+            
+            results = await asyncio.gather(
+                *(cancel_child(child_run, client, payload) for child_run in child_runs),
+                return_exceptions=False,
+            )
+
+            response_data["cancelled_children"] = [
+                r for r in results if r is not None
+            ]
+
+
         response_data["parent"] = response.json()
-    
+
     return response_data

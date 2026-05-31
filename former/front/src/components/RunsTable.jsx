@@ -104,7 +104,7 @@ function CancelModal({ run, onClose, onConfirmed }) {
 // ── Execution count badge ─────────────────────────────────────
 function ExecBadge({ run }) {
   const total     = run.num_executions ?? 1;
-  const completed = run.progress?.completed ?? (run.state === "success" ? total : 0);
+  const completed = run.progress?.numberOfSuccessfulRuns ?? (run.state === "success" ? total : 0);
   if (total <= 1) return null;
   return (
     <span className="exec-badge" title={`${completed} of ${total} executions done`}>

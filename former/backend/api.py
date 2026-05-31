@@ -337,7 +337,6 @@ def list_airflow_runs(
                 else None,
             }
         )
-    print(result)
     return result
 
 
@@ -374,7 +373,7 @@ def airflow_trigger(
             risk_tolerance=payload.conf_personality.get("risk_tolerance") if payload.conf_personality else None,
             verbosity=payload.conf_personality.get("verbosity") if payload.conf_personality else None,
             formality=payload.conf_personality.get("formality") if payload.conf_personality else None,
-        ))
+        ))        
         db.commit()
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=exc.response.status_code, detail=f"Airflow API error: {exc.response.text}")
@@ -396,7 +395,7 @@ def airflow_trigger(
 
 
 @app.post("/airflow/runs/{dag_run_id}/cancel")
-def cancel_airflow_run(
+async def  cancel_airflow_run(
     dag_run_id: str,
     current_user: Annotated[Dict, Depends(get_current_user)],
     db: Session = Depends(get_db)
@@ -418,25 +417,12 @@ def cancel_airflow_run(
         )
     
     try:
-        response = cancel_airflow_dag(run.dag_id, dag_run_id, cancel_children=True)
+        response = await cancel_airflow_dag(run.dag_id, dag_run_id, cancel_children=True)
         
         # Update the state in the database
         run.state = "cancelled"
-        db.commit()
         
-        # If this is a parent DAG, also update child DAG states in database
-        if run.dag_id == "form_filler_plan":
-            child_runs = (
-                db.query(AirflowTriggerInternalRequest)
-                .filter(
-                    AirflowTriggerInternalRequest.run_id.like(f"{dag_run_id}__item_%"),
-                    AirflowTriggerInternalRequest.user_email == current_user["email"]
-                )
-                .all()
-            )
-            for child_run in child_runs:
-                child_run.state = "cancelled"
-            db.commit()
+        db.commit()
         
         return {
             "dag_run_id": dag_run_id,
