@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
-  CardElement,
+  PaymentElement,
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
@@ -34,7 +34,7 @@ function formatCurrency(amount, currency = "eur") {
   }).format(amount);
 }
 
-// ── Stripe card form ──────────────────────────────────────
+// ── Stripe Payment Form ───────────────────────────────────
 function CheckoutForm({ amountEur, fills, onSuccess, onCancel }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -53,30 +53,15 @@ function CheckoutForm({ amountEur, fills, onSuccess, onCancel }) {
     setLoading(true);
 
     try {
-      // Step 1: Create PaymentIntent on backend
-      console.log("Creating payment intent for", amountEur, "EUR and", fills, "fills");
-      const intentResponse = await api.createPaymentIntent({
-        amount_eur: amountEur,
-        form_fills_purchased: fills,
+      // Step 2: Confirm payment using Elements
+      const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          // Note: If using redirect-based methods (like iDEAL), specify a return_url here:
+          // return_url: window.location.origin + "/billing/success",
+        },
+        redirect: "if_required", // Prevents page reload for cards/Apple Pay
       });
-      console.log("Payment intent created:", intentResponse);
-
-      const card = elements.getElement(CardElement);
-      if (!card) {
-        throw new Error("Card element not found");
-      }
-
-      // Step 2: Confirm payment with Stripe using the new confirmPayment API
-      console.log("Confirming payment with client secret:", intentResponse.client_secret);
-      const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(
-        intentResponse.client_secret,
-        {
-          payment_method: {
-            card,
-            billing_details: {},
-          },
-        }
-      );
 
       if (confirmError) {
         console.error("Payment confirmation error:", confirmError);
@@ -117,20 +102,8 @@ function CheckoutForm({ amountEur, fills, onSuccess, onCancel }) {
         <span className="billing-checkout__fills">→ {fills} form fills</span>
       </div>
 
-      <div className="billing-card-element">
-        <CardElement
-          options={{
-            style: {
-              base: {
-                fontSize: "14px",
-                fontFamily: '"IBM Plex Sans", sans-serif',
-                color: "#111110",
-                "::placeholder": { color: "#8a8a84" },
-              },
-              invalid: { color: "#cb2431" },
-            },
-          }}
-        />
+      <div className="billing-card-element" style={{ marginBottom: "20px" }}>
+        <PaymentElement />
       </div>
 
       {error && (
@@ -161,6 +134,8 @@ export default function BillingModal({ onClose }) {
   const { billing, transactions, loading, refetch } = useBilling();
   const [step, setStep] = useState("overview"); // overview | checkout | success
   const [selected, setSelected] = useState(null); // { eur, fills }
+  const [clientSecret, setClientSecret] = useState(null); // Added for PaymentElement
+  const [intentLoading, setIntentLoading] = useState(false); // Tracks backend call
   const [customEur, setCustomEur] = useState("");
   const [tab, setTab] = useState("topup"); // topup | history
 
@@ -171,20 +146,50 @@ export default function BillingModal({ onClose }) {
   const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
   const stripeConfigured = !!stripePublishableKey && stripePublishableKey !== "";
 
-  function selectTier(tier) {
+  // Step 1: Create PaymentIntent as soon as a tier is selected
+  async function selectTier(tier) {
     setSelected({ eur: tier.eur, fills: tier.fills });
-    setStep("checkout");
+    setIntentLoading(true);
+    try {
+      const intentResponse = await api.createPaymentIntent({
+        amount_eur: tier.eur,
+        form_fills_purchased: tier.fills,
+      });
+      setClientSecret(intentResponse.client_secret);
+      setStep("checkout");
+    } catch (err) {
+      console.error("Failed to create payment intent", err);
+    } finally {
+      setIntentLoading(false);
+    }
   }
 
-  function selectCustom() {
+  async function selectCustom() {
     if (!customValid) return;
     setSelected({ eur: Number(customEur), fills: customFills });
-    setStep("checkout");
+    setIntentLoading(true);
+    try {
+      const intentResponse = await api.createPaymentIntent({
+        amount_eur: Number(customEur),
+        form_fills_purchased: customFills,
+      });
+      setClientSecret(intentResponse.client_secret);
+      setStep("checkout");
+    } catch (err) {
+      console.error("Failed to create payment intent", err);
+    } finally {
+      setIntentLoading(false);
+    }
   }
 
   async function handleSuccess(fills) {
     await refetch();
     setStep("success");
+  }
+
+  function handleCancel() {
+    setStep("overview");
+    setClientSecret(null);
   }
 
   // Trap focus / close on Escape
@@ -235,19 +240,19 @@ export default function BillingModal({ onClose }) {
                   <span>Stripe is not configured. Please set STRIPE_PUBLISHABLE_KEY environment variable.</span>
                 </div>
               )}
-              {stripeConfigured && (
-                <Elements stripe={stripePromise}>
+              {stripeConfigured && clientSecret && (
+                <Elements stripe={stripePromise} options={{ clientSecret }}>
                   <CheckoutForm
                     amountEur={selected.eur}
                     fills={selected.fills}
                     onSuccess={handleSuccess}
-                    onCancel={() => setStep("overview")}
+                    onCancel={handleCancel}
                   />
                 </Elements>
               )}
-              {!stripeConfigured && (
+              {(!stripeConfigured || !clientSecret) && (
                 <div className="billing-checkout__actions">
-                  <button type="button" className="billing-btn billing-btn--ghost" onClick={() => setStep("overview")}>
+                  <button type="button" className="billing-btn billing-btn--ghost" onClick={handleCancel}>
                     Back
                   </button>
                 </div>
@@ -292,6 +297,7 @@ export default function BillingModal({ onClose }) {
                         key={t.label}
                         className="billing-tier"
                         onClick={() => selectTier(t)}
+                        disabled={intentLoading}
                       >
                         <div className="billing-tier__top">
                           <span className="billing-tier__label">{t.label}</span>
@@ -315,6 +321,7 @@ export default function BillingModal({ onClose }) {
                         placeholder="Custom amount"
                         value={customEur}
                         onChange={(e) => setCustomEur(e.target.value)}
+                        disabled={intentLoading}
                       />
                       {customEur && (
                         <span className="billing-custom__preview">
@@ -325,9 +332,9 @@ export default function BillingModal({ onClose }) {
                     <button
                       className="billing-btn billing-btn--primary"
                       onClick={selectCustom}
-                      disabled={!customValid}
+                      disabled={!customValid || intentLoading}
                     >
-                      Continue
+                      {intentLoading ? "Loading..." : "Continue"}
                     </button>
                   </div>
                 </div>

@@ -54,14 +54,7 @@ def authenticate_user(email: str, password: str, db: Session) -> Optional[Dict]:
     }
     
 
-def create_user(
-    email: str,
-    password: str,
-    name: str,
-    surname: str,
-    username: str,
-    db: Session
-    ) -> Dict:
+def create_user(email: str, password: str, name: str, surname: str, db: Session) -> Dict:
     """Create a new user."""    
     try:
         new_user = User(
@@ -69,7 +62,7 @@ def create_user(
             password_hash=hash_password(password),
             name=name,
             surname=surname,
-            username=username or email,
+            username= f"{name.strip()} {surname.strip()}",
         )
 
         db.add(new_user)
@@ -80,7 +73,7 @@ def create_user(
         billing_info = UserBillingInfo(
             user_id=new_user.id,
             total_amount_paid=0.0,
-            form_fills_remaining=10,
+            form_fills_remaining=20,
             form_fills_used=0,
         )
         db.add(billing_info)
@@ -102,14 +95,7 @@ def create_user(
             detail="User with this email or username already exists"
         )
 
-def get_or_create_oauth_user(
-    email: str,
-    name: str,
-    surname: str,
-    google_id: str,
-    db: Session
-    ) -> Dict:
-    
+def get_or_create_oauth_user(email: str, name: str, surname: str, google_id: str, db: Session) -> Dict:
     """Get or create a user from OAuth (Google)."""
     
     user = db.query(User).filter(User.email == email).first()

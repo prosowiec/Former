@@ -27,6 +27,7 @@ def get_airflow_access_token() -> str:
 
 def build_dag_run_payload(
     form_url: str,
+    user_id : str,
     run_id: Optional[str] = None,
     num_executions: int = 1,
     base_interval_minutes: float = 10.0,
@@ -39,6 +40,7 @@ def build_dag_run_payload(
             "num_executions": num_executions,
             "base_interval_minutes": base_interval_minutes,
             "interval_jitter_minutes": interval_jitter_minutes,
+            "user_id" : user_id,
         }
     }
     if run_id:
@@ -50,6 +52,7 @@ def build_dag_run_payload(
 def trigger_airflow_dag(
     form_url: str,
     dag_id: str,
+    user_id: str,
     run_id: Optional[str] = None,
     num_executions: int = 1,
     base_interval_minutes: float = 10.0,
@@ -60,7 +63,7 @@ def trigger_airflow_dag(
     url = f"{AIRFLOW_BASE_URL}/dags/{dag_id}/dagRuns"
     headers = {"Authorization": f"Bearer {access_token}"}
     payload = build_dag_run_payload(
-        form_url, run_id, num_executions, base_interval_minutes, interval_jitter_minutes, logical_date
+        form_url, user_id, run_id, num_executions, base_interval_minutes, interval_jitter_minutes, logical_date
     )
 
     with httpx.Client(headers=headers, timeout=30) as client:

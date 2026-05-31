@@ -32,6 +32,7 @@ with DAG(
             "execution_index": int(conf.get("execution_index", 0)),
             "num_executions": int(conf.get("num_executions", 1)),
             "run_id": conf.get("run_id"),
+            "user_id": conf.get("user_id"),
         }
     
     @task
@@ -161,8 +162,51 @@ with DAG(
                   f"{'Success' if success else 'Failed: ' + str(fill_result.get('error'))}")
         finally:
             session.close()
+            
+    @task
+    def update_billing(conf: dict, fill_result: dict) -> None:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from former.backend.models import UserBillingInfo
+
+        if not fill_result["success"]:
+            return
+
+        engine = create_engine(os.environ["DATABASE_URL"])
+        session = sessionmaker(bind=engine)()
+
+        try:
+            billing = (
+                session.query(UserBillingInfo)
+                .filter(UserBillingInfo.user_id == conf["user_id"])
+                .first()
+            )
+
+            if billing:
+                billing.form_fills_remaining = max(
+                    0,
+                    billing.form_fills_remaining - 1
+                )
+                billing.form_fills_used += 1
+
+                session.commit()
+
+                print(
+                    f"Billing updated for user {conf['user_id']}: "
+                    f"remaining={billing.form_fills_remaining}, "
+                    f"used={billing.form_fills_used}"
+                )
+            else:
+                print(f"No billing record found for user {conf['user_id']}")
+
+        finally:
+            session.close()
 
     conf = read_conf()
     personality = generate_personality(conf)
     fill_result = run_form(conf, personality)
-    update_status(conf, fill_result)
+
+    status_task = update_status(conf, fill_result)
+    billing_task = update_billing(conf, fill_result)
+
+    status_task >> billing_task

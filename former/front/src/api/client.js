@@ -158,7 +158,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ form_fills_to_deduct }),
     }),
+  createPaymentIntent: (payload) =>
+    request("/billing/create-payment-intent", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 
+  confirmPayment: (payload) =>
+    request("/billing/confirm-payment", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   // ── DAG ────────────────────────────────────────────────
   trigger: (payload) =>
     request("/airflow/trigger", { method: "POST", body: JSON.stringify(payload) }),

@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { useDashboard } from "../hooks/useDashboard";
 import { useBilling } from "../hooks/useBilling";
-import HealthBadge from "./HealthBadge";
 import TriggerForm from "./TriggerForm";
 import RunsTable from "./RunsTable";
 import BillingModal from "./BillingModal";
@@ -17,11 +16,10 @@ export default function Dashboard() {
     TABS, activeTab, setActiveTab,
     handleTriggerSuccess, handleRunCancelled, successBanner,
   } = useDashboard();
-  const { billing } = useBilling();
+  const { billing, refetch: refetchBilling } = useBilling();
 
   const fillsRemaining = billing?.form_fills_remaining ?? null;
   const fillsUsed      = billing?.form_fills_used      ?? null;
-  const lowFills = fillsRemaining !== null && fillsRemaining < 10;
 
   async function handleLogout() {
     await logout();
@@ -35,20 +33,6 @@ export default function Dashboard() {
           former
         </button>
         <div className="header-right">
-          <HealthBadge />
-
-          {/* Fills counter + top-up — always visible */}
-          <button
-            className={`fills-btn${lowFills ? " fills-btn--low" : ""}`}
-            onClick={() => setBillingOpen(true)}
-          >
-            <span className="fills-btn__count">
-              {fillsRemaining !== null ? fillsRemaining : "—"}
-            </span>
-            <span className="fills-btn__label">fills left</span>
-            <span className="fills-btn__cta">Top up</span>
-          </button>
-
           <div className="user-menu">
             {user?.picture && (
               <img
@@ -90,7 +74,11 @@ export default function Dashboard() {
               <span>{successBanner}</span>
             </div>
           )}
-          <TriggerForm onSuccess={handleTriggerSuccess} />
+          <TriggerForm
+            onSuccess={handleTriggerSuccess}
+            fillsRemaining={fillsRemaining}
+            onTopUp={() => setBillingOpen(true)}
+          />
         </div>
 
         {/* Runs card — stats live here now */}
@@ -141,7 +129,7 @@ export default function Dashboard() {
               <div className="fills-usage__meta">
                 <span className="fills-usage__label">
                   Form fills
-                  {lowFills && <span className="fills-usage__warning"> · Running low</span>}
+                  {fillsRemaining !== null && fillsRemaining < 10 && <span className="fills-usage__warning"> · Running low</span>}
                 </span>
                 <span className="fills-usage__numbers">
                   <span className="fills-usage__remaining">{fillsRemaining} remaining</span>
@@ -158,7 +146,7 @@ export default function Dashboard() {
                 return (
                   <div className="fills-usage__track">
                     <div
-                      className={`fills-usage__bar${lowFills ? " fills-usage__bar--low" : ""}`}
+                      className={`fills-usage__bar${fillsRemaining !== null && fillsRemaining < 10 ? " fills-usage__bar--low" : ""}`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -171,7 +159,7 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {billingOpen && <BillingModal onClose={() => setBillingOpen(false)} />}
+      {billingOpen && <BillingModal onClose={() => { setBillingOpen(false); refetchBilling(); }} />}
     </div>
   );
 }

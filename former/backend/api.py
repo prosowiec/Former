@@ -353,6 +353,7 @@ def airflow_trigger(
         response_payload = trigger_airflow_dag(
             str(payload.form_url),
             payload.dag_id,
+            current_user["id"],
             dag_run_id,
             payload.num_executions,
             payload.base_interval_minutes,

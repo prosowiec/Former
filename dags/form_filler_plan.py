@@ -33,6 +33,7 @@ with DAG(
             "base_interval_minutes": float(conf.get("base_interval_minutes", 10.0)),
             "interval_jitter_minutes": float(conf.get("interval_jitter_minutes", 2.0)),
             "run_id": dag_run.run_id if dag_run else None,
+            "user_id": conf.get("user_id"),
         }
 
     @task
@@ -53,6 +54,7 @@ with DAG(
                 "execution_index": i,
                 "num_executions": num,
                 "run_id": conf["run_id"],
+                "user_id": conf["user_id"],
             })
         return confs
 
