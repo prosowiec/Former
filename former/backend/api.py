@@ -751,10 +751,10 @@ def confirm_payment(
     try:
         # Retrieve the PaymentIntent
         intent = stripe.PaymentIntent.retrieve(request_data.payment_intent_id)
-        
         if intent.status != "succeeded":
             raise HTTPException(status_code=400, detail=f"Payment not successful: {intent.status}")
         
+        print(current_user)
         # Get user's billing info
         billing_info = db.query(UserBillingInfo).filter_by(user_id=current_user["id"]).first()
         if not billing_info:
@@ -777,11 +777,14 @@ def confirm_payment(
                 description=existing.description,
                 created_at=existing.created_at.isoformat() if existing.created_at else None,
             )
-        
-        # Get metadata
-        metadata = intent.get("metadata", {})
-        form_fills = int(metadata.get("form_fills_purchased", 0))
-        
+        intent_dict = intent.to_dict()
+        metadata = intent_dict["metadata"]
+        raw_form_fills = metadata["form_fills_purchased"]
+        try:
+            form_fills = int(raw_form_fills)
+        except:
+            raise Exception(f"Invalid form_fills_purchased value in metadata: {raw_form_fills}")
+
         # Create transaction record
         stripe_transaction = StripeTransaction(
             user_id=current_user["id"],
@@ -791,9 +794,9 @@ def confirm_payment(
             form_fills_purchased=form_fills,
             status="succeeded",
             description=f"{form_fills} form fills",
-            stripe_metadata=dict(intent),
+            stripe_metadata=intent.to_dict_recursive() if hasattr(intent, "to_dict_recursive") else {},
         )
-        
+
         db.add(stripe_transaction)
         
         # Update billing info

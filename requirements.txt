@@ -19,3 +19,4 @@ apache-airflow-providers-microsoft-mssql
 stripe>=5.0.0
 fastapi-mail>=1.4.1
 aiosmtplib>=3.0.0
+jinja2
