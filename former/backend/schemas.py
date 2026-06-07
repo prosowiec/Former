@@ -47,6 +47,7 @@ class UserResponse(BaseModel):
     email: str
     name: Optional[str] = None
     surname: Optional[str] = None
+    email_verified: bool
 
 
 class AuthLoginResponse(BaseModel):
@@ -129,3 +130,36 @@ class CreatePaymentIntentResponse(BaseModel):
 class ConfirmPaymentRequest(BaseModel):
     payment_intent_id: str
     stripe_transaction_id: str  # Optional payment method id or charge id
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationEmailRequest(BaseModel):
+    email: str
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str = Field(min_length=8, max_length=256)
+    new_password: str = Field(min_length=8, max_length=256)
+
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8, max_length=256)
+
+
+class EmailVerificationResponse(BaseModel):
+    id: str
+    email: str
+    email_verified: bool
+    message: str
+
+
+class MessageResponse(BaseModel):
+    message: str

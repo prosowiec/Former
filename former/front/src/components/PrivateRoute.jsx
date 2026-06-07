@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import UnverifiedPage from "./UnverifiedPage";
 
 export default function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -12,5 +13,10 @@ export default function PrivateRoute({ children }) {
     );
   }
 
-  return user ? children : <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace />;
+
+  console.log(user)
+  if (user.email_verified === false) return <UnverifiedPage />;
+
+  return children;
 }

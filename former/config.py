@@ -64,3 +64,17 @@ WAIT_BETWEEN = (30, 90)
 FORM_URL_GOOGLE = "https://docs.google.com/forms/d/e/1FAIpQLSftl5wRWwtjEhbeecNjaO880pn5vr3-25hqq7K06eEdjLY2nw/viewform?usp=header"
 FORM_URL_MS = "https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=W0Pa0OendE2krvcs-POy23esuPnlaW5LjSJAQ8hH3ThUN0hQSTg1WDc2Qk1FWFZKRVFKVEg0RzBDOC4u" # - REAL FORM
 
+# Email Configuration
+MAIL_USERNAME = os.getenv("MAIL_USERNAME", "your-email@gmail.com")
+MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "your-app-password")
+MAIL_FROM = os.getenv("MAIL_FROM", "noreply@former.app")
+MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "Former App")
+MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com")
+MAIL_PORT = int(os.getenv("MAIL_PORT", 587))
+MAIL_TLS = os.getenv("MAIL_TLS", "true").lower() == "true"
+MAIL_SSL = os.getenv("MAIL_SSL", "false").lower() == "true"
+
+# Email verification and password reset URLs (for links sent in emails)
+EMAIL_VERIFY_URL = os.getenv("EMAIL_VERIFY_URL", f"{FRONTEND_URL}/verify-email")
+PASSWORD_RESET_URL = os.getenv("PASSWORD_RESET_URL", f"{FRONTEND_URL}/reset-password")
+

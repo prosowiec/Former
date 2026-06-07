@@ -14,9 +14,9 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? 
 const FILLS_PER_EUR = 10;
 
 const TIERS = [
-  { label: "Starter",     eur: 5,   fills: 50,  note: "Good for testing" },
-  { label: "Standard",    eur: 10,  fills: 100, note: "Most popular" },
-  { label: "Pro",         eur: 25,  fills: 250, note: "Best value" },
+  { label: "Starter",  eur: 5,  fills: 50,  note: "Good for testing" },
+  { label: "Standard", eur: 10, fills: 100, note: "Most popular" },
+  { label: "Pro",      eur: 25, fills: 250, note: "Best value" },
 ];
 
 function formatDate(iso) {
@@ -36,59 +36,38 @@ function formatCurrency(amount, currency = "eur") {
 
 // ── Stripe Payment Form ───────────────────────────────────
 function CheckoutForm({ amountEur, fills, onSuccess, onCancel }) {
-  const stripe = useStripe();
+  const stripe   = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error,   setError]   = useState(null);
 
   async function handlePay(e) {
     e.preventDefault();
-    
     if (!stripe || !elements) {
       setError("Stripe is not loaded. Please refresh the page.");
       return;
     }
-
     setError(null);
     setLoading(true);
-
     try {
-      // Step 2: Confirm payment using Elements
       const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
         elements,
-        confirmParams: {
-          // Note: If using redirect-based methods (like iDEAL), specify a return_url here:
-          // return_url: window.location.origin + "/billing/success",
-        },
-        redirect: "if_required", // Prevents page reload for cards/Apple Pay
+        confirmParams: { return_url: window.location.origin + "/home" },
+        redirect: "if_required",
       });
 
-      if (confirmError) {
-        console.error("Payment confirmation error:", confirmError);
-        throw new Error(confirmError.message);
-      }
-
-      if (!paymentIntent) {
-        throw new Error("No payment intent returned from Stripe");
-      }
-
-      console.log("Payment intent status:", paymentIntent.status);
-
-      if (paymentIntent.status !== "succeeded") {
+      if (confirmError) throw new Error(confirmError.message);
+      if (!paymentIntent) throw new Error("No payment intent returned from Stripe");
+      if (paymentIntent.status !== "succeeded")
         throw new Error(`Payment failed with status: ${paymentIntent.status}`);
-      }
 
-      // Step 3: Confirm payment on backend
-      console.log("Confirming payment on backend");
       await api.confirmPayment({
         payment_intent_id: paymentIntent.id,
         stripe_transaction_id: paymentIntent.id,
       });
 
-      console.log("Payment successful!");
       onSuccess(fills);
     } catch (err) {
-      console.error("Payment error:", err);
       setError(err.message || "Payment failed. Please try again.");
     } finally {
       setLoading(false);
@@ -132,51 +111,32 @@ function CheckoutForm({ amountEur, fills, onSuccess, onCancel }) {
 // ── Main modal ────────────────────────────────────────────
 export default function BillingModal({ onClose }) {
   const { billing, transactions, loading, refetch } = useBilling();
-  const [step, setStep] = useState("overview"); // overview | checkout | success
-  const [selected, setSelected] = useState(null); // { eur, fills }
-  const [clientSecret, setClientSecret] = useState(null); // Added for PaymentElement
-  const [intentLoading, setIntentLoading] = useState(false); // Tracks backend call
-  const [customEur, setCustomEur] = useState("");
-  const [tab, setTab] = useState("topup"); // topup | history
+  const [step,          setStep]          = useState("overview");
+  const [selected,      setSelected]      = useState(null);
+  const [clientSecret,  setClientSecret]  = useState(null);
+  const [intentLoading, setIntentLoading] = useState(false);
+  const [intentError,   setIntentError]   = useState(null);
+  const [customEur,     setCustomEur]     = useState("");
+  const [tab,           setTab]           = useState("topup");
 
   const customFills = Math.floor(Number(customEur) * FILLS_PER_EUR);
   const customValid = customEur !== "" && Number(customEur) >= 1;
-  
-  // Check if Stripe is configured
-  const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-  const stripeConfigured = !!stripePublishableKey && stripePublishableKey !== "";
 
-  // Step 1: Create PaymentIntent as soon as a tier is selected
-  async function selectTier(tier) {
-    setSelected({ eur: tier.eur, fills: tier.fills });
+  const stripeConfigured = !!(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "");
+
+  async function startCheckout(eur, fills) {
+    setIntentError(null);
     setIntentLoading(true);
+    setSelected({ eur, fills });
     try {
-      const intentResponse = await api.createPaymentIntent({
-        amount_eur: tier.eur,
-        form_fills_purchased: tier.fills,
+      const res = await api.createPaymentIntent({
+        amount_eur: eur,
+        form_fills_purchased: fills,
       });
-      setClientSecret(intentResponse.client_secret);
+      setClientSecret(res.client_secret);
       setStep("checkout");
     } catch (err) {
-      console.error("Failed to create payment intent", err);
-    } finally {
-      setIntentLoading(false);
-    }
-  }
-
-  async function selectCustom() {
-    if (!customValid) return;
-    setSelected({ eur: Number(customEur), fills: customFills });
-    setIntentLoading(true);
-    try {
-      const intentResponse = await api.createPaymentIntent({
-        amount_eur: Number(customEur),
-        form_fills_purchased: customFills,
-      });
-      setClientSecret(intentResponse.client_secret);
-      setStep("checkout");
-    } catch (err) {
-      console.error("Failed to create payment intent", err);
+      setIntentError(err.message ?? "Failed to start checkout. Please try again.");
     } finally {
       setIntentLoading(false);
     }
@@ -190,20 +150,13 @@ export default function BillingModal({ onClose }) {
   function handleCancel() {
     setStep("overview");
     setClientSecret(null);
+    setIntentError(null);
   }
-
-  // Trap focus / close on Escape
-  useEffect(() => {
-    function onKey(e) { if (e.key === "Escape") onClose(); }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal billing-modal" onClick={(e) => e.stopPropagation()}>
 
-        {/* Header */}
         <div className="modal__header">
           <div className="modal__title-group">
             <span className="modal__title">Billing</span>
@@ -219,25 +172,26 @@ export default function BillingModal({ onClose }) {
           </button>
         </div>
 
-        {/* Body */}
         <div className="modal__body">
 
+          {/* Success */}
           {step === "success" && (
             <div className="billing-success">
               <span className="billing-success__icon">✓</span>
               <span className="billing-success__msg">Payment recorded. Your fills have been added.</span>
-              <button className="billing-btn billing-btn--primary" onClick={() => setStep("overview")}>
+              <button className="billing-btn billing-btn--primary" onClick={() => { setStep("overview"); setIntentError(null); }}>
                 Done
               </button>
             </div>
           )}
 
+          {/* Checkout */}
           {step === "checkout" && selected && (
             <>
               {!stripeConfigured && (
                 <div className="banner banner--error">
-                  <span className="banner__label">Configuration Error</span>
-                  <span>Stripe is not configured. Please set STRIPE_PUBLISHABLE_KEY environment variable.</span>
+                  <span className="banner__label">Config error</span>
+                  <span>Stripe publishable key is not set.</span>
                 </div>
               )}
               {stripeConfigured && clientSecret && (
@@ -250,27 +204,40 @@ export default function BillingModal({ onClose }) {
                   />
                 </Elements>
               )}
-              {(!stripeConfigured || !clientSecret) && (
-                <div className="billing-checkout__actions">
-                  <button type="button" className="billing-btn billing-btn--ghost" onClick={handleCancel}>
-                    Back
-                  </button>
-                </div>
+              {stripeConfigured && !clientSecret && !intentError && (
+                <div className="runs-empty">Loading payment form…</div>
+              )}
+              {intentError && (
+                <>
+                  <div className="banner banner--error">
+                    <span className="banner__label">Error</span>
+                    <span>{intentError}</span>
+                  </div>
+                  <div className="billing-checkout__actions" style={{ marginTop: 12 }}>
+                    <button className="billing-btn billing-btn--ghost" onClick={handleCancel}>Back</button>
+                  </div>
+                </>
               )}
             </>
           )}
 
+          {/* Overview */}
           {step === "overview" && (
             <>
-              {/* Tabs */}
               <div className="tabs">
-                <button className={`tab${tab === "topup" ? " tab--active" : ""}`} onClick={() => setTab("topup")}>Top up</button>
+                <button className={`tab${tab === "topup"   ? " tab--active" : ""}`} onClick={() => setTab("topup")}>Top up</button>
                 <button className={`tab${tab === "history" ? " tab--active" : ""}`} onClick={() => setTab("history")}>History</button>
               </div>
 
+              {intentError && (
+                <div className="banner banner--error">
+                  <span className="banner__label">Error</span>
+                  <span>{intentError}</span>
+                </div>
+              )}
+
               {tab === "topup" && (
                 <div className="billing-topup">
-                  {/* Stats */}
                   {billing && !loading && (
                     <div className="billing-stats">
                       <div className="billing-stat">
@@ -290,13 +257,12 @@ export default function BillingModal({ onClose }) {
 
                   <p className="billing-rate">1 EUR = {FILLS_PER_EUR} form fills</p>
 
-                  {/* Tiers */}
                   <div className="billing-tiers">
                     {TIERS.map((t) => (
                       <button
                         key={t.label}
                         className="billing-tier"
-                        onClick={() => selectTier(t)}
+                        onClick={() => startCheckout(t.eur, t.fills)}
                         disabled={intentLoading}
                       >
                         <div className="billing-tier__top">
@@ -309,7 +275,6 @@ export default function BillingModal({ onClose }) {
                     ))}
                   </div>
 
-                  {/* Custom */}
                   <div className="billing-custom">
                     <div className="billing-custom__input-wrap">
                       <span className="billing-custom__currency">€</span>
@@ -324,17 +289,15 @@ export default function BillingModal({ onClose }) {
                         disabled={intentLoading}
                       />
                       {customEur && (
-                        <span className="billing-custom__preview">
-                          = {customFills} fills
-                        </span>
+                        <span className="billing-custom__preview">= {customFills} fills</span>
                       )}
                     </div>
                     <button
                       className="billing-btn billing-btn--primary"
-                      onClick={selectCustom}
+                      onClick={() => startCheckout(Number(customEur), customFills)}
                       disabled={!customValid || intentLoading}
                     >
-                      {intentLoading ? "Loading..." : "Continue"}
+                      {intentLoading ? "Loading…" : "Continue"}
                     </button>
                   </div>
                 </div>
@@ -344,9 +307,7 @@ export default function BillingModal({ onClose }) {
                 <div className="billing-history">
                   {loading && <div className="runs-empty">Loading…</div>}
                   {!loading && transactions.length === 0 && (
-                    <div className="runs-empty">
-                      <span>No transactions yet.</span>
-                    </div>
+                    <div className="runs-empty"><span>No transactions yet.</span></div>
                   )}
                   {!loading && transactions.length > 0 && (
                     <div className="billing-txns">

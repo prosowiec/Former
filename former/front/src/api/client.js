@@ -145,6 +145,22 @@ export const api = {
     return res;
   },
 
+  // ── Email verification & password reset ───────────────
+  sendVerificationEmail: (email) =>
+    request("/auth/verify-email/send", { method: "POST", body: JSON.stringify({ email }) }),
+
+  verifyEmail: (token) =>
+    request("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) }),
+
+  requestPasswordReset: (email) =>
+    request("/auth/password-reset/request", { method: "POST", body: JSON.stringify({ email }) }),
+
+  confirmPasswordReset: (token, new_password) =>
+    request("/auth/password-reset/confirm", { method: "POST", body: JSON.stringify({ token, new_password }) }),
+
+  changePassword: (current_password, new_password) =>
+    request("/auth/change-password", { method: "POST", body: JSON.stringify({ current_password, new_password }) }),
+
   // ── Billing ────────────────────────────────────────────
   getBillingInfo: () => request("/billing/info"),
 
@@ -158,17 +174,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ form_fills_to_deduct }),
     }),
+
   createPaymentIntent: (payload) =>
-    request("/billing/create-payment-intent", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
+    request("/billing/create-payment-intent", { method: "POST", body: JSON.stringify(payload) }),
 
   confirmPayment: (payload) =>
-    request("/billing/confirm-payment", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
+    request("/billing/confirm-payment", { method: "POST", body: JSON.stringify(payload) }),
+
   // ── DAG ────────────────────────────────────────────────
   trigger: (payload) =>
     request("/airflow/trigger", { method: "POST", body: JSON.stringify(payload) }),

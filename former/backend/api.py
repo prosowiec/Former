@@ -35,8 +35,15 @@ from .schemas import (
     CreatePaymentIntentRequest,
     CreatePaymentIntentResponse,
     ConfirmPaymentRequest,
+    VerifyEmailRequest,
+    ResendVerificationEmailRequest,
+    ChangePasswordRequest,
+    PasswordResetRequest,
+    PasswordResetConfirmRequest,
+    EmailVerificationResponse,
+    MessageResponse,
 )
-from .users import authenticate_user, create_user, get_user, get_or_create_oauth_user
+from .users import authenticate_user, create_user, get_user, get_or_create_oauth_user, send_email_verification, verify_email, change_password, request_password_reset, reset_password
 from .db import get_db, init_db
 
 # Security scheme for bearer token
@@ -49,7 +56,6 @@ async def get_current_user(
 ) -> Dict:
     """Dependency to get current user from JWT token in Authorization header."""
     
-    print("ALL INFO" , credentials)
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -81,7 +87,6 @@ async def get_current_user(
                 detail="User not found",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
         return user
     except HTTPException:
         raise
@@ -168,7 +173,6 @@ def auth_tokens(request: Request):
 
 @app.post("/auth/register", response_model=AuthLoginResponse)
 def auth_register(credentials: AuthRegisterRequest, db: Session = Depends(get_db)):
-    print(f"Attempting to register user: {credentials.email}")
     if get_user(credentials.email, db):
         raise HTTPException(status_code=400, detail="User already exists")
 
@@ -193,8 +197,6 @@ def auth_google_login(request: Request):
 
 @app.get("/auth/callback")
 def auth_callback(request: Request, db: Session = Depends(get_db)):
-    print("ALL COOKIES:", dict(request.cookies))
-
     state = request.query_params.get("state")
     code = request.query_params.get("code")
     stored_state = request.session.get("oauth_state")  # read from session
@@ -250,18 +252,115 @@ def auth_refresh(refresh_data: RefreshTokenRequest, db: Session = Depends(get_db
         raise HTTPException(status_code=401, detail="Token refresh failed")
 
 
-@app.get("/auth/me")
-def auth_me(current_user: Annotated[Dict, Depends(get_current_user)]):
-    """Get current authenticated user."""
-    return JSONResponse({"user": current_user})
-
-
 @app.post("/auth/logout")
 def auth_logout():
     response = JSONResponse({"detail": "Logged out"})
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
     return response
+
+
+def get_verified_user(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    db: Session = Depends(get_db)
+) -> Dict:
+    """Dependency to get current user and verify email is verified."""
+    # Call get_current_user synchronously (it handles the same as before)
+    # We're doing the email verification check here
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    try:
+        payload = verify_token(credentials.credentials)
+        if payload.get("type") == "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type: expected access token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        email = payload.get("sub")
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token: missing subject",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        user = get_user(email, db)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Check if email is verified
+        db_user = db.query(User).filter(User.email == email).first()
+        if not db_user or not db_user.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Email verification required to access this resource"
+            )
+        
+        return user
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+@app.get("/auth/me")
+def auth_me(current_user: Annotated[Dict, Depends(get_current_user)]):
+    """Get current authenticated user."""
+    return JSONResponse({"user": current_user})
+
+
+@app.post("/auth/verify-email/send", response_model=MessageResponse)
+def send_verification_email(request: ResendVerificationEmailRequest, db: Session = Depends(get_db)):
+    """Send email verification link to user."""
+    send_email_verification(request.email, db)
+    return MessageResponse(message="Verification email sent. Please check your inbox and click the link to verify your email.")
+
+
+@app.post("/auth/verify-email", response_model=EmailVerificationResponse)
+def verify_email_endpoint(verify_data: VerifyEmailRequest, db: Session = Depends(get_db)):
+    """Verify email using token."""
+    result = verify_email(verify_data.token, db)
+    return EmailVerificationResponse(**result)
+
+
+@app.post("/auth/change-password", response_model=MessageResponse)
+def change_password_endpoint(
+    password_data: ChangePasswordRequest,
+    current_user: Annotated[Dict, Depends(get_verified_user)],
+    db: Session = Depends(get_db)
+):
+    """Change user's password."""
+    result = change_password(current_user["email"], password_data.old_password, password_data.new_password, db)
+    return MessageResponse(**result)
+
+
+@app.post("/auth/password-reset/request", response_model=MessageResponse)
+def request_password_reset_endpoint(reset_data: PasswordResetRequest, db: Session = Depends(get_db)):
+    """Request password reset."""
+    result = request_password_reset(reset_data.email, db)
+    return MessageResponse(message=result["message"])
+
+
+@app.post("/auth/password-reset/confirm", response_model=MessageResponse)
+def reset_password_endpoint(reset_data: PasswordResetConfirmRequest, db: Session = Depends(get_db)):
+    """Reset password using token."""
+    result = reset_password(reset_data.token, reset_data.new_password, db)
+    return MessageResponse(**result)
 
 def get_progress_state(progress: AirflowProgress) -> str:
     if not progress:
@@ -343,7 +442,7 @@ def list_airflow_runs(
 @app.post("/airflow/trigger", response_model=AirflowTriggerResponse)
 def airflow_trigger(
     payload: AirflowTriggerRequest,
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[Dict, Depends(get_verified_user)],
     db: Session = Depends(get_db)
 ) -> AirflowTriggerResponse:
     """Trigger an Airflow DAG. Requires JWT authentication."""

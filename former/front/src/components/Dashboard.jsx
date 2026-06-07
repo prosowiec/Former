@@ -1,16 +1,20 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { useDashboard } from "../hooks/useDashboard";
 import { useBilling } from "../hooks/useBilling";
+import { api } from "../api/client";
 import TriggerForm from "./TriggerForm";
 import RunsTable from "./RunsTable";
 import BillingModal from "./BillingModal";
+import ChangePasswordModal from "./ChangePasswordModal";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [billingOpen, setBillingOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState(null); // "success" | "error" | null
   const {
     filteredRuns, runsLoading, stats,
     TABS, activeTab, setActiveTab,
@@ -20,6 +24,30 @@ export default function Dashboard() {
 
   const fillsRemaining = billing?.form_fills_remaining ?? null;
   const fillsUsed      = billing?.form_fills_used      ?? null;
+
+  // Handle Stripe redirect return (PayPal, bank redirect, etc.)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentIntentId = params.get("payment_intent");
+    const redirectStatus  = params.get("redirect_status");
+
+    if (!paymentIntentId || redirectStatus !== "succeeded") return;
+
+    // Clean URL immediately so a refresh doesn't re-trigger
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    api.confirmPayment({
+      payment_intent_id: paymentIntentId,
+      stripe_transaction_id: paymentIntentId,
+    })
+      .then(() => {
+        refetchBilling();
+        setPaymentStatus("success");
+      })
+      .catch(() => {
+        setPaymentStatus("error");
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleLogout() {
     await logout();
@@ -43,6 +71,9 @@ export default function Dashboard() {
               />
             )}
             <span className="user-name">{user?.name ?? user?.email}</span>
+            <button className="logout-btn" onClick={() => setChangePasswordOpen(true)}>
+              Change password
+            </button>
             <button className="logout-btn" onClick={handleLogout}>
               Sign out
             </button>
@@ -51,6 +82,27 @@ export default function Dashboard() {
       </header>
 
       <main className="main main--wide">
+
+        {paymentStatus === "success" && (
+          <div className="banner banner--success">
+            <span className="banner__label">Payment confirmed</span>
+            <span>Your fills have been added to your account.</span>
+            <button
+              style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "inherit", fontSize: "16px" }}
+              onClick={() => setPaymentStatus(null)}
+            >×</button>
+          </div>
+        )}
+        {paymentStatus === "error" && (
+          <div className="banner banner--error">
+            <span className="banner__label">Payment error</span>
+            <span>Could not confirm your payment. Please contact support.</span>
+            <button
+              style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "inherit", fontSize: "16px" }}
+              onClick={() => setPaymentStatus(null)}
+            >×</button>
+          </div>
+        )}
 
         {/* Hero — clean, no stats */}
         <div className="dashboard-hero">
@@ -160,6 +212,7 @@ export default function Dashboard() {
       </main>
 
       {billingOpen && <BillingModal onClose={() => { setBillingOpen(false); refetchBilling(); }} />}
+      {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
     </div>
   );
 }

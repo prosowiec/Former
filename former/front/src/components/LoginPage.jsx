@@ -3,10 +3,78 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../api/client";
 
+// ── Forgot password inline form ───────────────────────────
+function ForgotPassword({ onBack }) {
+  const [email,   setEmail]   = useState("");
+  const [loading, setLoading] = useState(false);
+  const [sent,    setSent]    = useState(false);
+  const [error,   setError]   = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await api.requestPasswordReset(email);
+      setSent(true);
+    } catch (err) {
+      setError(err.message ?? "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="login-page">
+      <button className="login-back" onClick={onBack}>← Back</button>
+      <div className="login-card">
+        <span className="logo">former</span>
+        <p className="login-desc">Enter your email and we'll send a reset link.</p>
+
+        {sent ? (
+          <>
+            <div className="banner banner--success">
+              <span className="banner__label">Sent</span>
+              <span>Check your inbox for the reset link.</span>
+            </div>
+            <button className="submit-btn submit-btn--full" onClick={onBack}>Back to sign in</button>
+          </>
+        ) : (
+          <form className="login-form" onSubmit={handleSubmit} noValidate>
+            <div className="field">
+              <label htmlFor="reset-email">Email</label>
+              <input
+                id="reset-email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+                autoComplete="email"
+              />
+            </div>
+            {error && (
+              <div className="banner banner--error">
+                <span className="banner__label">Error</span>
+                <span>{error}</span>
+              </div>
+            )}
+            <button className="submit-btn submit-btn--full" type="submit" disabled={loading}>
+              {loading ? <span className="spinner" /> : "Send reset link"}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { refetchUser } = useAuth();
+  const [showForgot, setShowForgot] = useState(false);
 
   const isRegister = location.pathname === "/register";
 
@@ -45,6 +113,8 @@ export default function LoginPage() {
   function handleGoogle() {
     window.location.href = api.loginUrl();
   }
+
+  if (showForgot) return <ForgotPassword onBack={() => setShowForgot(false)} />;
 
   return (
     <div className="login-page">
@@ -88,7 +158,7 @@ export default function LoginPage() {
           </div>
 
           {isRegister && (
-            <div className="login-form">
+            <div className="field-row">
               <div className="field">
                 <label htmlFor="name">First name</label>
                 <input
@@ -145,6 +215,14 @@ export default function LoginPage() {
             {isRegister ? "Sign in" : "Register"}
           </button>
         </p>
+
+        {!isRegister && (
+          <p className="login-toggle">
+            <button type="button" className="advanced-toggle" onClick={() => setShowForgot(true)}>
+              Forgot password?
+            </button>
+          </p>
+        )}
       </div>
     </div>
   );

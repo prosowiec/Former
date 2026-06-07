@@ -1,4 +1,5 @@
 import httpx
+import secrets
 from urllib.parse import urlencode
 from fastapi import HTTPException
 from datetime import datetime, timedelta
@@ -126,3 +127,17 @@ def create_token_pair(email: str, name: Optional[str] = None, surname: Optional[
         "refresh_token": refresh_token,
         "token_type": "bearer",
     }
+
+
+def generate_email_verification_token() -> tuple[str, datetime]:
+    """Generate an email verification token and its expiration time."""
+    token = secrets.token_urlsafe(32)
+    expires = datetime.utcnow() + timedelta(hours=24)
+    return token, expires
+
+
+def generate_password_reset_token() -> tuple[str, datetime]:
+    """Generate a password reset token and its expiration time."""
+    token = secrets.token_urlsafe(32)
+    expires = datetime.utcnow() + timedelta(hours=1)
+    return token, expires

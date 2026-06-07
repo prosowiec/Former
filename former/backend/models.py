@@ -19,7 +19,12 @@ class User(Base):
     password_hash = Column(String(255), nullable=True)  # None if using OAuth
     name = Column(String(255), nullable=True)
     surname = Column(String(255), nullable=True)
-    google_id = Column(String(255), nullable=True)  # G
+    google_id = Column(String(255), nullable=True)  # Google OAuth ID
+    email_verified = Column(Boolean, default=False, nullable=False)  # Email verification status
+    email_verification_token = Column(String(255), nullable=True)  # Token for email verification
+    email_verification_token_expires = Column(DateTime, nullable=True)  # Expiration time for verification token
+    password_reset_token = Column(String(255), nullable=True)  # Token for password reset
+    password_reset_token_expires = Column(DateTime, nullable=True)  # Expiration time for reset token
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
