@@ -4,10 +4,11 @@ x-airflow-env: &airflow-env
   AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-api-server:8080/execution/"
   AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
   AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
-
   AIRFLOW__CORE__JWT_SECRET_KEY: "9f8c1b7d9a2e4f6c8b0a1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
   AIRFLOW__API_AUTH__JWT_SECRET: "9f8c1b7d9a2e4f6c8b0a1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-
+  TZ: UTC
+  AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: UTC
+  AIRFLOW__CORE__DEFAULT_TIMEZONE: utc
   PYTHONPATH: /opt/airflow
 
 services:
@@ -17,6 +18,7 @@ services:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
+      TZ: UTC
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
     ports:
@@ -136,7 +138,21 @@ services:
       CHOKIDAR_USEPOLLING: "true"
     depends_on:
       - backend
-
+  airflow-triggerer:
+    build: .
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./former:/opt/airflow/former
+      - airflow-logs:/opt/airflow/logs
+      - ./simple_auth_manager_passwords.json.generated:/opt/airflow/simple_auth_manager_passwords.json.generated
+    environment:
+      <<: *airflow-env
+    command: ["airflow", "triggerer"]
+    env_file:
+      - .env
 volumes:
   postgres-db-volume:
   airflow-logs:

@@ -1,9 +1,9 @@
 import random
 from datetime import datetime, timedelta
-
 from airflow import DAG
 from airflow.decorators import task
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.providers.standard.sensors.date_time import DateTimeSensorAsync
 
 default_args = {
     "owner": "you",
@@ -37,44 +37,82 @@ with DAG(
         }
 
     @task
-    def build_confs(conf: dict) -> list:
-        """One conf dict per triggered execution."""
-        num = conf["num_executions"]
-        base = conf["base_interval_minutes"]
-        jitter = conf["interval_jitter_minutes"]
-        confs = []
-        for i in range(num):
-            delay = 0 if i == 0 else random.uniform(
-                max(0.1, base - jitter),
-                base + jitter,
-            )
-            confs.append({
-                "form_url": conf["form_url"],
-                "delay_minutes": delay,
-                "execution_index": i,
-                "num_executions": num,
-                "run_id": conf["run_id"],
-                "user_id": conf["user_id"],
+    def build_items(conf: dict) -> list:
+        import logging
+        from tzlocal import get_localzone
+        local_tz = get_localzone()
+        now = datetime.now(local_tz)
+        logging.info("Local timezone: %s | now: %s", local_tz, now.isoformat())
+
+        items = []
+        cumulative_delay = 2.0  # minimum buffer so item 0 is always in the future
+        for i in range(conf["num_executions"]):
+            if i > 0:
+                cumulative_delay += random.uniform(
+                    max(0.1, conf["base_interval_minutes"] - conf["interval_jitter_minutes"]),
+                    conf["base_interval_minutes"] + conf["interval_jitter_minutes"],
+                )
+            scheduled_time = now + timedelta(minutes=cumulative_delay)
+            logging.info("[ITEM %s] scheduled_time=%s (in %.1f min)", i, scheduled_time.isoformat(), cumulative_delay)
+            items.append({
+                "scheduled_time": scheduled_time.isoformat(),
+                "trigger_run_id": f"{conf['run_id']}__item_{i}",
+                "conf": {
+                    "form_url": conf["form_url"],
+                    "user_id": conf["user_id"],
+                    "execution_index": i,
+                    "num_executions": conf["num_executions"],
+                },
             })
-        return confs
+        return items
 
     @task
-    def build_run_ids(conf: dict) -> list:
-        """Matching list of unique trigger_run_ids — must align by index with build_confs."""
-        return [
-            f"{conf['run_id']}__item_{i}"
-            for i in range(conf["num_executions"])
-        ]
+    def extract_scheduled_times(items: list) -> list:
+        import logging
+        from tzlocal import get_localzone
+        from datetime import datetime
+        local_tz = get_localzone()
+        now = datetime.now(local_tz)
+        times = []
+        for item in items:
+            t = datetime.fromisoformat(item["scheduled_time"])
+            # Safety guard: ensure target is always at least 10s in the future
+            if t <= now:
+                from datetime import timedelta
+                t = now + timedelta(seconds=10)
+                logging.warning("Scheduled time was in the past, bumped to %s", t.isoformat())
+            times.append(t.isoformat())
+        return times
+
+    @task
+    def extract_confs(items: list) -> list:
+        return [item["conf"] for item in items]
+
+    @task
+    def extract_run_ids(items: list) -> list:
+        return [item["trigger_run_id"] for item in items]
 
     conf = get_conf()
+    items = build_items(conf)
 
-    # expand() fans out by index: conf[i] paired with trigger_run_id[i]
-    TriggerDagRunOperator.partial(
+    wait = DateTimeSensorAsync.partial(
+        task_id="wait_for_schedule",
+        poke_interval=30,
+    ).expand(
+        target_time=extract_scheduled_times(items),
+    )
+
+    confs = extract_confs(items)
+    run_ids = extract_run_ids(items)
+
+    trigger = TriggerDagRunOperator.partial(
         task_id="trigger_execution",
         trigger_dag_id="form_filler_dag",
         wait_for_completion=False,
         reset_dag_run=True,
     ).expand(
-        conf=build_confs(conf),
-        trigger_run_id=build_run_ids(conf),
+        conf=confs,
+        trigger_run_id=run_ids,
     )
+
+    wait >> trigger
