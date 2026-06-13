@@ -43,7 +43,7 @@ class UserBillingInfo(Base):
     total_amount_paid = Column(Float, default=0.0, nullable=False)  # Total amount user has paid
     form_fills_remaining = Column(Integer, default=10, nullable=False)  # Remaining form fills
     form_fills_used = Column(Integer, default=0, nullable=False)  # Total form fills used
-    stripe_customer_id = Column(String(255), nullable=True, unique=True)  # Stripe customer ID
+    stripe_customer_id = Column(String(255), nullable=True)  # Stripe customer ID
     stripe_subscription_id = Column(String(255), nullable=True)  # Stripe subscription ID
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

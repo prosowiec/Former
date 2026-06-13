@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from passlib.context import CryptContext
 
-from former.backend.mailService import send_password_reset_email
+from former.backend.mailService import send_password_reset_email, send_email_verification as mail_send_email_verification
 
 from .models import User, UserBillingInfo
 from .auth import generate_email_verification_token, generate_password_reset_token
@@ -177,7 +177,7 @@ def send_email_verification(email: str, db: Session) -> Optional[str]:
     # Create verification link
     verify_link = f"{EMAIL_VERIFY_URL}?token={token}"
     
-    email_sent = send_email_verification(user.email, verify_link)
+    email_sent = mail_send_email_verification(user.email, verify_link)
     # Prepare email content
     if not email_sent:
         # Log error but don't fail the request - token is still valid
