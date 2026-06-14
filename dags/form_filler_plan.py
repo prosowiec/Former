@@ -92,6 +92,13 @@ with DAG(
     def extract_run_ids(items: list) -> list:
         return [item["trigger_run_id"] for item in items]
 
+    @task
+    def zip_trigger_inputs(items: list) -> list:
+        return [
+            {"conf": item["conf"], "trigger_run_id": item["trigger_run_id"]}
+            for item in items
+        ]
+
     conf = get_conf()
     items = build_items(conf)
 
@@ -102,17 +109,11 @@ with DAG(
         target_time=extract_scheduled_times(items),
     )
 
-    confs = extract_confs(items)
-    run_ids = extract_run_ids(items)
-
     trigger = TriggerDagRunOperator.partial(
         task_id="trigger_execution",
         trigger_dag_id="form_filler_dag",
         wait_for_completion=False,
         reset_dag_run=True,
-    ).expand(
-        conf=confs,
-        trigger_run_id=run_ids,
-    )
+    ).expand_kwargs(zip_trigger_inputs(items))
 
     wait >> trigger

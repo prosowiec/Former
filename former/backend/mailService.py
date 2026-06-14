@@ -8,10 +8,7 @@ from ..config import (
     MAIL_FROM,
     MAIL_FROM_NAME,
     MAIL_SERVER,
-    MAIL_PORT,
-    EMAIL_VERIFY_URL,
-    PASSWORD_RESET_URL,
-    FRONTEND_URL,
+    MAIL_PORT
 )
 
 conf = ConnectionConfig(

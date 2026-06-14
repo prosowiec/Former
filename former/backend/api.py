@@ -15,10 +15,11 @@ from sqlalchemy.orm import Session
 from former.backend.models import AirflowProgress, AirflowTriggerInternalRequest, UserBillingInfo, StripeTransaction, User
 
 
-from .auth import build_google_login_url, get_google_user_from_code, create_token_pair, verify_token
-from ..config import FRONTEND_URL, SECRET_KEY, STRIPE_SECRET_KEY
-from .dagOperations import trigger_airflow_dag, cancel_airflow_dag
-from .schemas import (
+from former.backend.auth import build_google_login_url, get_google_user_from_code, create_token_pair, verify_token
+from former.config import FRONTEND_URL, SECRET_KEY, STRIPE_SECRET_KEY
+from former.backend.airflowInterface.trigger_run import trigger_airflow_dag
+from former.backend.airflowInterface.cancel_run import cancel_airflow_dag
+from former.backend.schemas import (
     AirflowRunResponse,
     AirflowTriggerRequest,
     AirflowTriggerResponse,

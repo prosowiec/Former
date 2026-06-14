@@ -78,3 +78,13 @@ MAIL_SSL = os.getenv("MAIL_SSL", "false").lower() == "true"
 EMAIL_VERIFY_URL = os.getenv("EMAIL_VERIFY_URL", f"{FRONTEND_URL}/verify-email")
 PASSWORD_RESET_URL = os.getenv("PASSWORD_RESET_URL", f"{FRONTEND_URL}/reset-password")
 
+AIRFLOW_MODE = os.getenv("AIRFLOW_MODE", "LOCAL").upper()
+
+AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
+AZURE_RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
+
+AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID")
+AZURE_CLIENT_SECRET = os.getenv("AZURE_CLIENT_SECRET")
+AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID")
+
+ACI_IMAGE = os.getenv("ACI_IMAGE")
