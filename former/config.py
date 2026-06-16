@@ -12,8 +12,6 @@ def require_env(name: str) -> str:
     return value.strip()
 
 
-AIRFLOW_HOST = os.getenv("AIRFLOW_HOST", "http://localhost:9090")
-AIRFLOW_BASE_URL = os.getenv("AIRFLOW_BASE_URL", f"{AIRFLOW_HOST}/api/v2")
 AIRFLOW_USERNAME = os.getenv("AIRFLOW_USERNAME", "admin")
 AIRFLOW_PASSWORD = os.getenv("AIRFLOW_PASSWORD", "admin")
 AIRFLOW_DB_URI = os.getenv("AIRFLOW_DB_URI", "postgresql+psycopg2://airflow:airflow@postgres/airflow")
@@ -32,28 +30,36 @@ REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", 7))
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+FRONTEND_URL = os.getenv("LOCAL_FRONTEND_URL" if os.getenv("ENV", "PROD").upper() == "LOCAL" else "FRONTEND_URL", "http://localhost:5173")
 
 # Stripe Configuration
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
 
 AUTH_USERS_FILE = os.getenv("AUTH_USERS_FILE", os.path.join(os.path.dirname(__file__), "auth_users.json"))
-DEFAULT_AUTH_USERNAME = os.getenv("DEFAULT_AUTH_USERNAME", "")
-DEFAULT_AUTH_PASSWORD = os.getenv("DEFAULT_AUTH_PASSWORD", "")
 
 # MSSQL Database Configuration
-DB_USER = os.getenv("DB_USER", "sa")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "YourPassword123!")
-DB_HOST = os.getenv("DB_HOST", "host.docker.internal")
-DB_PORT = os.getenv("DB_PORT", "1433")
-DB_NAME = os.getenv("DB_NAME", "former")
+APP_ENV = os.getenv("ENV", "PROD").upper()
+USE_LOCAL_DB = APP_ENV == "LOCAL"
 
-# Database URL for SQLAlchemy (MSSQL)
+DB_USER = os.getenv("LOCAL_DB_USER" if USE_LOCAL_DB else "DB_USER", "sa")
+DB_PASSWORD = os.getenv("LOCAL_DB_PASSWORD" if USE_LOCAL_DB else "DB_PASSWORD", "YourPassword123!")
+DB_HOST = os.getenv("LOCAL_DB_HOST" if USE_LOCAL_DB else "DB_HOST", "host.docker.internal")
+DB_PORT = os.getenv("LOCAL_DB_PORT" if USE_LOCAL_DB else "DB_PORT", "1433")
+DB_NAME = os.getenv("LOCAL_DB_NAME" if USE_LOCAL_DB else "DB_NAME", "former")
+
 DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    f"mssql+pyodbc://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?driver=ODBC+Driver+17+for+SQL+Server"
+    "LOCAL_DATABASE_URL" if USE_LOCAL_DB else "DATABASE_URL",
+    f"mssql+pyodbc://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
 )
+
+AIRFLOW_HOST = os.getenv("LOCAL_AIRFLOW_HOST" if USE_LOCAL_DB else "AIRFLOW_HOST", "http://localhost:9090")
+AIRFLOW_BASE_URL = os.getenv(
+    "LOCAL_AIRFLOW_BASE_URL" if USE_LOCAL_DB else "AIRFLOW_BASE_URL",
+    f"{AIRFLOW_HOST}/api/v2"
+)
+
+AIRFLOW_MODE = APP_ENV
 
 # SQLAlchemy settings
 SQLALCHEMY_ECHO = os.getenv("SQLALCHEMY_ECHO", "False").lower() == "true"
@@ -77,8 +83,6 @@ MAIL_SSL = os.getenv("MAIL_SSL", "false").lower() == "true"
 # Email verification and password reset URLs (for links sent in emails)
 EMAIL_VERIFY_URL = os.getenv("EMAIL_VERIFY_URL", f"{FRONTEND_URL}/verify-email")
 PASSWORD_RESET_URL = os.getenv("PASSWORD_RESET_URL", f"{FRONTEND_URL}/reset-password")
-
-AIRFLOW_MODE = os.getenv("AIRFLOW_MODE", "LOCAL").upper()
 
 AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
 AZURE_RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
