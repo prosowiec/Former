@@ -3,12 +3,12 @@ import { useAuth } from "./hooks/useAuth";
 
 import PrivateRoute  from "./components/PrivateRoute";
 import PublicRoute   from "./components/PublicRoute";
-import LandingPage   from "./components/LandingPage";
+import Landingpage   from "./components/Landingpage";
 import LoginPage     from "./components/LoginPage";
 import OAuthSuccess  from "./components/OAuthSuccess";
 import Dashboard     from "./components/Dashboard";
 import VerifyEmail   from "./components/VerifyEmail";
-import ResetPassword from "./components/ResetPassword";
+import Resetpassword from "./components/Resetpassword";
 
 import "./index.css";
 
@@ -28,7 +28,7 @@ export default function App() {
         path="/landing"
         element={
           <PublicRoute>
-            <LandingPage />
+            <Landingpage />
           </PublicRoute>
         }
       />
@@ -54,7 +54,7 @@ export default function App() {
 
       {/* Email flows — public, no auth needed */}
       <Route path="/verify-email"   element={<VerifyEmail />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/reset-password" element={<Resetpassword />} />
 
       {/* Private routes — redirect unauthenticated users to /login */}
       <Route

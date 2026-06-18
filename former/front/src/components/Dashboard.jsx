@@ -6,8 +6,8 @@ import { useBilling } from "../hooks/useBilling";
 import { api } from "../api/client";
 import TriggerForm from "./TriggerForm";
 import RunsTable from "./RunsTable";
-import BillingModal from "./BillingModal";
-import ChangePasswordModal from "./ChangePasswordModal";
+import Billingmodal from "./Billingmodal";
+import Changepasswordmodal from "./Changepasswordmodal";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -211,8 +211,8 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {billingOpen && <BillingModal onClose={() => { setBillingOpen(false); refetchBilling(); }} />}
-      {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
+      {billingOpen && <Billingmodal onClose={() => { setBillingOpen(false); refetchBilling(); }} />}
+      {changePasswordOpen && <Changepasswordmodal onClose={() => setChangePasswordOpen(false)} />}
     </div>
   );
 }

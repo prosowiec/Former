@@ -30,9 +30,10 @@ export default defineConfig({
       "/airflow": "http://localhost:8000",
     },
     allowedHosts: [
-      "https://former.com.pl/",
-      'localhost',
-      '127.0.0.1'
-        ]
-  },
+      "former.com.pl",
+      "www.former.com.pl",
+      "localhost",
+      "127.0.0.1"
+    ]
+  }
 });
