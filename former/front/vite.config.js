@@ -26,9 +26,13 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Proxy /health and /airflow/* to the FastAPI server during development
       "/health": "http://localhost:8000",
       "/airflow": "http://localhost:8000",
     },
+    allowedHosts: [
+      "https://former.com.pl/",
+      'localhost',
+      '127.0.0.1'
+        ]
   },
 });
