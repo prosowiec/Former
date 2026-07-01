@@ -108,9 +108,10 @@ app = FastAPI(
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", FRONTEND_URL],
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,

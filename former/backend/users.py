@@ -12,8 +12,7 @@ from .models import User, UserBillingInfo
 from .auth import generate_email_verification_token, generate_password_reset_token
 from ..config import (
     EMAIL_VERIFY_URL,
-    PASSWORD_RESET_URL,
-    FRONTEND_URL,
+    PASSWORD_RESET_URL
 )
 
 
