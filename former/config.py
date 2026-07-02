@@ -30,7 +30,14 @@ REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", 7))
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI")
-FRONTEND_URL = os.getenv("LOCAL_FRONTEND_URL" if os.getenv("ENV", "PROD").upper() == "LOCAL" else "FRONTEND_URL", "http://localhost:5173")
+
+APP_ENV = os.getenv("ENV", os.getenv("AIRFLOW_MODE", "PROD")).upper()
+USE_LOCAL_DB = APP_ENV == "LOCAL"
+
+FRONTEND_URL = os.getenv(
+    "LOCAL_FRONTEND_URL" if APP_ENV == "LOCAL" else "FRONTEND_URL",
+    "http://localhost:5173" if APP_ENV == "LOCAL" else "https://former.pl.com",
+)
 
 # Stripe Configuration
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
@@ -39,9 +46,6 @@ STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
 AUTH_USERS_FILE = os.getenv("AUTH_USERS_FILE", os.path.join(os.path.dirname(__file__), "auth_users.json"))
 
 # MSSQL Database Configuration
-APP_ENV = os.getenv("ENV", "PROD").upper()
-USE_LOCAL_DB = APP_ENV == "LOCAL"
-
 DB_USER = os.getenv("LOCAL_DB_USER" if USE_LOCAL_DB else "DB_USER", "sa")
 DB_PASSWORD = os.getenv("LOCAL_DB_PASSWORD" if USE_LOCAL_DB else "DB_PASSWORD", "YourPassword123!")
 DB_HOST = os.getenv("LOCAL_DB_HOST" if USE_LOCAL_DB else "DB_HOST", "host.docker.internal")

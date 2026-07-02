@@ -111,7 +111,8 @@ if STRIPE_SECRET_KEY:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", FRONTEND_URL],
+    allow_origins=["http://localhost:5173", "http://localhost", "http://127.0.0.1", FRONTEND_URL],
+    allow_origin_regex=r"^http://(localhost|127\.0\.0\.1|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$",
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
