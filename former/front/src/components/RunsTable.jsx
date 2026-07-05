@@ -249,7 +249,6 @@ export default function RunsTable({ runs, loading, onRunCancelled }) {
       <div className="runs-table">
         <div className="runs-table__header">
           <span>Run</span>
-          <span>Progress</span>
           <span>Status</span>
           <span>Started</span>
           <span />
@@ -272,8 +271,6 @@ export default function RunsTable({ runs, loading, onRunCancelled }) {
                   {truncate(run.form_url)}
                 </span>
               </div>
-
-              <RunStageIndicator state={run.state} />
 
               <span className="state-badge" style={{ color: STATE_COLORS[run.state] ?? STATE_COLORS.unknown }}>
                 {run.state}

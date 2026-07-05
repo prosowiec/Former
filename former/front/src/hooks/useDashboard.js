@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useRuns } from "./useRuns";
+import { normalizeRuns } from "./runsUtils";
 
 const TABS = [
   { id: "all",     label: "All" },
@@ -30,7 +31,7 @@ export function useDashboard() {
     setTimeout(() => setSuccessBanner(null), 4000);
   }
 
-  const filteredRuns = runs.filter((r) => {
+  const filteredRuns = normalizeRuns(runs).filter((r) => {
     if (activeTab === "running") return r.state === "running" || r.state === "queued";
     if (activeTab === "done")    return r.state === "success";
     if (activeTab === "failed")  return r.state === "failed" || r.state === "cancelled";

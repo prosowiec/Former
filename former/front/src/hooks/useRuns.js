@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../api/client";
+import { normalizeRuns } from "./runsUtils";
 
 export function useRuns() {
   const [runs, setRuns] = useState([]);
@@ -32,12 +33,14 @@ export function useRuns() {
     );
   }, []);
 
+  const runsArray = normalizeRuns(runs);
+
   const stats = {
-    total: runs.length,
-    pending: runs.filter((r) => r.state === "queued").length,
-    running: runs.filter((r) => r.state === "running").length,
-    done: runs.filter((r) => r.state === "success").length,
-    failed: runs.filter((r) => r.state === "failed").length,
+    total: runsArray.length,
+    pending: runsArray.filter((r) => r.state === "queued").length,
+    running: runsArray.filter((r) => r.state === "running").length,
+    done: runsArray.filter((r) => r.state === "success").length,
+    failed: runsArray.filter((r) => r.state === "failed").length,
   };
 
   return { runs, loading, addRun, updateRun, stats, refetch: fetchRuns };

@@ -137,7 +137,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="card__header">
             <span className="card__title">Runs</span>
-            <div className="card__header-right">
+            <div className="card__header-right runs-toolbar">
               {/* Run stats inline */}
               <div className="run-stats">
                 <span className="run-stat">
@@ -161,7 +161,7 @@ export default function Dashboard() {
               <div className="card__divider" />
 
               {/* Tabs */}
-              <div className="tabs">
+              <div className="tabs runs-filters">
                 {TABS.map((t) => (
                   <button
                     key={t.id}

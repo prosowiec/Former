@@ -175,8 +175,9 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
     <form className="trigger-form" onSubmit={handleSubmit} noValidate>
 
       {/* Row 1: name + URL */}
-      <div className="trigger-form__inline">
-        <div className="field" style={{ minWidth: "170px" }}>
+      <div className="trigger-form__section">
+        <div className="trigger-form__inline">
+          <div className="field" style={{ minWidth: "170px" }}>
           <label htmlFor="run_name">
             Run name <span className="required-mark">*</span>
           </label>
@@ -221,7 +222,6 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
           className="submit-btn"
           type="submit"
           disabled={loading || !runName.trim() || !formUrl.trim() || isEmpty}
-          style={{ marginTop: "20px" }}
         >
           {loading
             ? <span className="spinner" />
@@ -229,6 +229,7 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
             ? `Trigger ${numExecutions}`
             : "Trigger"}
         </button>
+        </div>
       </div>
 
       {/* Fills preview — always shown when billing is available */}
