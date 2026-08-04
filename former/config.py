@@ -15,6 +15,8 @@ def require_env(name: str) -> str:
 AIRFLOW_USERNAME = os.getenv("AIRFLOW_USERNAME", "admin")
 AIRFLOW_PASSWORD = os.getenv("AIRFLOW_PASSWORD", "admin")
 DEFAULT_DAG_ID = os.getenv("AIRFLOW_DAG_ID", "form_filler_plan")
+SCHEDULER_JITTER_RATIO = max(0.0, float(os.getenv("SCHEDULER_JITTER_RATIO", "0.20")))
+SCHEDULER_MAX_JITTER_MINUTES = max(0.0, float(os.getenv("SCHEDULER_MAX_JITTER_MINUTES", "2.0")))
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

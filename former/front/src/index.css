@@ -506,9 +506,10 @@ body {
 .trigger-form__inline {
   display: grid;
   grid-template-columns:
-    minmax(180px, 0.9fr)
+    minmax(150px, 0.8fr)
     minmax(280px, 2fr)
     minmax(88px, 108px)
+    minmax(190px, 0.9fr)
     auto;
   align-items: flex-end;
   gap: 12px;
@@ -528,6 +529,36 @@ body {
 .field--grow { flex: 1; }
 .field--form-url input { width: 100%; }
 .field--runs .input--narrow { width: 100%; }
+
+.rate-input-group {
+  display: grid;
+  grid-template-columns: minmax(58px, 0.55fr) minmax(104px, 1fr);
+}
+
+.rate-input-group input {
+  width: 100%;
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.rate-input-group select {
+  height: 38px;
+  min-width: 0;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--border);
+  border-left: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+.rate-input-group:focus-within input,
+.rate-input-group:focus-within select {
+  border-color: var(--accent);
+}
 
 .field label {
   font-size: 12px;
@@ -564,6 +595,14 @@ body {
   min-height: 32px;
   margin-top: 10px;
   font-size: 12px;
+  color: var(--muted);
+}
+
+.field-limit {
+  margin-left: 4px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--muted);
 }
 
@@ -1830,6 +1869,21 @@ body {
   }
   .lp-hero__h1  { font-size: clamp(48px, 12vw, 80px); }
   .lp-hero__lead { font-size: 17px; }
+}
+
+@media (min-width: 769px) and (max-width: 960px) {
+  .trigger-form__inline {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .field--form-url {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .trigger-form__inline .submit-btn {
+    width: 100%;
+  }
 }
 
 @media (max-width: 768px) {

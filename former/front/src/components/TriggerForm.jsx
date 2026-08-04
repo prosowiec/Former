@@ -124,9 +124,8 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
   const [runName, setRunName]             = useState("");
   const [formUrl, setFormUrl]             = useState("");
   const [numExecutions, setNumExecutions] = useState(1);
-  const [baseInterval, setBaseInterval]   = useState(10);
-  const [jitter, setJitter]               = useState(2);
-  const [showScheduling, setShowScheduling] = useState(false);
+  const [fillRate, setFillRate]           = useState(6);
+  const [ratePeriod, setRatePeriod]       = useState("hour");
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState(null);
   const [axisValues, setAxisValues]       = useState(AXES.map(() => 2));
@@ -135,6 +134,9 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
   const after   = fillsRemaining !== null ? fillsRemaining - numExecutions : null;
   const isLow   = after !== null && after < 10 && after >= 0;
   const isEmpty = after !== null && after < 0;
+  const periodMinutes = ratePeriod === "day" ? 24 * 60 : 60;
+  const maxFillRate = 12;
+  const baseInterval = periodMinutes / Math.max(1, fillRate);
 
   function setAxis(axisIdx, stepIdx) {
     setAxisValues((prev) => prev.map((v, i) => (i === axisIdx ? stepIdx : v)));
@@ -154,8 +156,7 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
         dag_id: DEFAULT_DAG_ID,
         run_id: randomRunId(runName),
         num_executions: numExecutions,
-        base_interval_minutes: baseInterval,
-        interval_jitter_minutes: jitter,
+        base_interval_minutes: Number(baseInterval.toFixed(4)),
         conf_run_name: runName.trim(),
         run_name: runName.trim(),
         conf_personality: personality,
@@ -218,6 +219,39 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
           />
         </div>
 
+        <div className="field field--rate">
+          <label htmlFor="fill_rate">
+            Fill pace <span className="field-limit">max 12/hour</span>
+          </label>
+          <div className="rate-input-group">
+            <input
+              id="fill_rate"
+              type="number"
+              min={1}
+              max={maxFillRate}
+              step={1}
+              value={fillRate}
+              onChange={(e) => {
+                const value = Number(e.target.value) || 1;
+                setFillRate(Math.min(maxFillRate, Math.max(1, value)));
+              }}
+              aria-label="Forms filled"
+            />
+            <select
+              value={ratePeriod}
+              onChange={(e) => {
+                const nextPeriod = e.target.value;
+                setRatePeriod(nextPeriod);
+                setFillRate((current) => Math.min(current, 12));
+              }}
+              aria-label="Fill pace period"
+            >
+              <option value="hour">per hour</option>
+              <option value="day">per day</option>
+            </select>
+          </div>
+        </div>
+
         <button
           className="submit-btn"
           type="submit"
@@ -259,46 +293,6 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
           )}
         </div>
       )}
-
-      {/* Scheduling — only shown on demand */}
-      <div className="trigger-form__footer">
-        <button
-          type="button"
-          className="advanced-toggle"
-          onClick={() => setShowScheduling((v) => !v)}
-        >
-          {showScheduling ? "Hide" : "Show"} scheduling options
-        </button>
-
-        {showScheduling && (
-          <div className="advanced-fields" style={{ marginTop: "8px" }}>
-            <div className="field-row">
-              <div className="field">
-                <label htmlFor="base_interval">Base interval <span className="optional">(min)</span></label>
-                <input
-                  id="base_interval"
-                  type="number"
-                  min={0.1}
-                  step={0.1}
-                  value={baseInterval}
-                  onChange={(e) => setBaseInterval(Number(e.target.value))}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="jitter">Jitter <span className="optional">(min)</span></label>
-                <input
-                  id="jitter"
-                  type="number"
-                  min={0}
-                  step={0.1}
-                  value={jitter}
-                  onChange={(e) => setJitter(Number(e.target.value))}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* Personality — appears when URL is entered */}
       {hasUrl && (

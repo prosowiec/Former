@@ -1,6 +1,7 @@
 import { useState } from "react";
 import RunStageIndicator from "./RunStageIndicator";
 import { api } from "../api/client";
+import { formatFillRate } from "../hooks/runsUtils";
 
 const STATE_COLORS = {
   queued:    "var(--yellow)",
@@ -188,7 +189,7 @@ function RunModal({ run, onClose, onCancelRequest }) {
                 </div>
                 {total > 1 && (
                   <span className="modal__exec-interval">
-                    Every {run.base_interval_minutes} min ± {run.interval_jitter_minutes} min
+                    {formatFillRate(run.base_interval_minutes)}
                   </span>
                 )}
               </div>

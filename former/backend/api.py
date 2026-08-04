@@ -16,7 +16,13 @@ from former.backend.models import AirflowProgress, AirflowTriggerInternalRequest
 
 
 from former.backend.auth import build_google_login_url, get_google_user_from_code, create_token_pair, verify_token
-from former.config import FRONTEND_URL, SECRET_KEY, STRIPE_SECRET_KEY
+from former.config import (
+    FRONTEND_URL,
+    SECRET_KEY,
+    STRIPE_SECRET_KEY,
+    SCHEDULER_JITTER_RATIO,
+    SCHEDULER_MAX_JITTER_MINUTES,
+)
 from former.backend.airflowInterface.trigger_run import trigger_airflow_dag
 from former.backend.airflowInterface.cancel_run import cancel_airflow_dag
 from former.backend.schemas import (
@@ -452,6 +458,13 @@ def airflow_trigger(
     
     try:
         dag_run_id = build_run_id(payload.run_id, current_user["id"])
+        interval_jitter_minutes = round(
+            min(
+                SCHEDULER_MAX_JITTER_MINUTES,
+                payload.base_interval_minutes * SCHEDULER_JITTER_RATIO,
+            ),
+            4,
+        )
         response_payload = trigger_airflow_dag(
             str(payload.form_url),
             payload.dag_id,
@@ -459,7 +472,7 @@ def airflow_trigger(
             dag_run_id,
             payload.num_executions,
             payload.base_interval_minutes,
-            payload.interval_jitter_minutes,
+            interval_jitter_minutes,
         )
 
         db.add(AirflowTriggerInternalRequest(
@@ -470,7 +483,7 @@ def airflow_trigger(
             run_name=payload.run_name,
             num_executions=payload.num_executions,
             base_interval_minutes=payload.base_interval_minutes,
-            interval_jitter_minutes=payload.interval_jitter_minutes,
+            interval_jitter_minutes=interval_jitter_minutes,
             age_profile=payload.conf_personality.get("age_profile") if payload.conf_personality else None,
             political_leaning=payload.conf_personality.get("political_leaning") if payload.conf_personality else None,
             risk_tolerance=payload.conf_personality.get("risk_tolerance") if payload.conf_personality else None,
@@ -496,7 +509,7 @@ def airflow_trigger(
         state=state,
         num_executions=payload.num_executions,
         base_interval_minutes=payload.base_interval_minutes,
-        interval_jitter_minutes=payload.interval_jitter_minutes,
+        interval_jitter_minutes=interval_jitter_minutes,
         airflow_response=response_payload,
     )
 

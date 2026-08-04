@@ -32,7 +32,7 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant AF as Airflow API
 
-    User->>UI: URL, run count, interval, personality
+    User->>UI: URL, run count, hourly/daily pace, personality
     UI->>API: POST /airflow/trigger + access token
     API->>DB: Validate user and verified email
     API->>AF: POST form_filler_plan DAG run
@@ -75,7 +75,8 @@ sequenceDiagram
 ```
 
 The first planned execution is scheduled approximately two minutes ahead.
-Later executions add a random interval in the configured base ± jitter range.
+The UI converts the selected hourly or daily pace into a base interval. Later
+executions add scheduler-controlled jitter; users do not configure it directly.
 
 ## Run status
 

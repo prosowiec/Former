@@ -50,7 +50,6 @@ tokens are HS256 JWTs with the user's email in `sub`; refresh tokens also carry
   "run_id": "spring_survey__abc123",
   "num_executions": 5,
   "base_interval_minutes": 10,
-  "interval_jitter_minutes": 2,
   "conf_personality": {
     "age_profile": "mid_career",
     "political_leaning": "centrist",
@@ -61,8 +60,11 @@ tokens are HS256 JWTs with the user's email in `sub`; refresh tokens also carry
 }
 ```
 
-Pydantic validates a URL, at least one execution, a base interval of at least
-0.1 minute, and non-negative jitter.
+Pydantic validates a URL, at least one execution, and a base interval of at
+least five minutes, enforcing a maximum of 12 fills per hour. The UI expresses
+that interval as forms per hour or day and caps the visible pace value at 12.
+Jitter is derived by the backend from `SCHEDULER_JITTER_RATIO` and capped by
+`SCHEDULER_MAX_JITTER_MINUTES`; clients cannot configure it.
 
 ## Backend modules
 
