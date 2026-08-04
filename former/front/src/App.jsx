@@ -13,14 +13,18 @@ import Resetpassword from "./components/Resetpassword";
 import "./index.css";
 
 export default function App() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
   return (
     <Routes>
       {/* Root — redirect based on auth state */}
       <Route
         path="/"
-        element={<Navigate to={user ? "/home" : "/landing"} replace />}
+        element={
+          loading
+            ? <div className="loading-screen"><span className="spinner spinner--dark" /></div>
+            : <Navigate to={user ? "/home" : "/landing"} replace />
+        }
       />
 
       {/* Public-only routes — redirect logged-in users to /home */}

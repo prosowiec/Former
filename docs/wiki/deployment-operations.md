@@ -100,6 +100,9 @@ the PostgreSQL sidecar without declared persistent storage.
 
 Node Alpine builds the Vite bundle; Nginx Alpine serves it. The build context is
 `former/front`, so Dockerfile copy paths are relative to that directory.
+Vite configuration is compiled into the static assets. Local Compose passes
+`VITE_API_BASE_URL=http://localhost:8000`; production image builds must pass
+their production API URL explicitly.
 
 ### Backend
 

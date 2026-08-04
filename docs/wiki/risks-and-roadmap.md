@@ -110,8 +110,8 @@ superseded.
 ### Centralize frontend auth state
 
 Every `useAuth()` invocation owns separate state and may fetch `/auth/me`.
-Introduce an auth context/provider. Resolve the `sessionStorage` versus
-`localStorage` mismatch and document the chosen session lifetime.
+Introduce an auth context/provider to remove duplicate requests and keep the
+chosen session lifetime centralized.
 
 ### Add run polling or push updates
 

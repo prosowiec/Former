@@ -17,7 +17,10 @@ export default function OAuthSuccess() {
           throw new Error("Tokens missing from response");
         }
         setTokens(data.access_token, data.refresh_token);
-        window.location.replace("/");
+        // Go straight to the protected route. PrivateRoute waits for /auth/me
+        // to resolve, so the user cannot be redirected to the landing page
+        // during the post-OAuth authentication race.
+        window.location.replace("/home");
       })
       .catch((err) => {
         console.error("OAuth failed:", err);

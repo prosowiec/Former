@@ -74,8 +74,10 @@ Vite variables are compile-time values:
 - `VITE_DEFAULT_DAG_ID` (optional; defaults to `form_filler_plan`)
 
 Root backend environment files and frontend Vite environment files are
-separate contracts. Production frontend values must exist at image build time,
-not merely as runtime container variables.
+separate contracts. Local Compose passes explicit Docker build arguments so a
+production `.env.production` file cannot leak its URL into a local bundle.
+Production frontend values must likewise be passed as image build arguments;
+setting them only on the runtime Nginx container cannot change compiled code.
 
 ## Nginx
 

@@ -19,7 +19,8 @@ Google login stores an OAuth state in the signed Starlette session, exchanges
 the callback code with Google, creates or updates the user, and redirects to
 the frontend with short-lived HTTP-only token cookies. The OAuth success page
 exchanges those cookies through `GET /auth/tokens`; the API client then keeps
-tokens in browser session storage.
+tokens in browser session storage and navigates directly to `/home`. The
+private-route guard waits for `/auth/me` before rendering or redirecting.
 
 ## Form-run trigger
 

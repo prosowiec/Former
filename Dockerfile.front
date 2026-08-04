@@ -6,6 +6,15 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+
+# Vite reads these values while compiling the static bundle. Compose supplies
+# local values explicitly; production builds must supply production values.
+ARG VITE_API_BASE_URL
+ARG VITE_STRIPE_PUBLISHABLE_KEY
+ARG VITE_DEFAULT_DAG_ID=form_filler_plan
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_STRIPE_PUBLISHABLE_KEY=${VITE_STRIPE_PUBLISHABLE_KEY}
+ENV VITE_DEFAULT_DAG_ID=${VITE_DEFAULT_DAG_ID}
 RUN npm run build
 
 FROM nginx:alpine
