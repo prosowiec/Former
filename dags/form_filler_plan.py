@@ -59,6 +59,7 @@ with DAG(
                 "trigger_run_id": f"{conf['run_id']}__item_{i}",
                 "conf": {
                     "form_url": conf["form_url"],
+                    "run_id": conf["run_id"],
                     "user_id": conf["user_id"],
                     "execution_index": i,
                     "num_executions": conf["num_executions"],

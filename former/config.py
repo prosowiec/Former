@@ -14,7 +14,6 @@ def require_env(name: str) -> str:
 
 AIRFLOW_USERNAME = os.getenv("AIRFLOW_USERNAME", "admin")
 AIRFLOW_PASSWORD = os.getenv("AIRFLOW_PASSWORD", "admin")
-AIRFLOW_DB_URI = os.getenv("AIRFLOW_DB_URI", "postgresql+psycopg2://airflow:airflow@postgres/airflow")
 DEFAULT_DAG_ID = os.getenv("AIRFLOW_DAG_ID", "form_filler_plan")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -45,25 +44,30 @@ STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
 
 AUTH_USERS_FILE = os.getenv("AUTH_USERS_FILE", os.path.join(os.path.dirname(__file__), "auth_users.json"))
 
-# MSSQL Database Configuration
-DB_USER = os.getenv("LOCAL_DB_USER" if USE_LOCAL_DB else "DB_USER", "sa")
-DB_PASSWORD = os.getenv("LOCAL_DB_PASSWORD" if USE_LOCAL_DB else "DB_PASSWORD", "YourPassword123!")
-DB_HOST = os.getenv("LOCAL_DB_HOST" if USE_LOCAL_DB else "DB_HOST", "host.docker.internal")
-DB_PORT = os.getenv("LOCAL_DB_PORT" if USE_LOCAL_DB else "DB_PORT", "1433")
+# PostgreSQL database shared by the application and Airflow metadata.
+DB_USER = os.getenv("LOCAL_DB_USER" if USE_LOCAL_DB else "DB_USER", "former")
+DB_PASSWORD = os.getenv("LOCAL_DB_PASSWORD" if USE_LOCAL_DB else "DB_PASSWORD", "former")
+DB_HOST = os.getenv("LOCAL_DB_HOST" if USE_LOCAL_DB else "DB_HOST", "postgres")
+DB_PORT = os.getenv("LOCAL_DB_PORT" if USE_LOCAL_DB else "DB_PORT", "5432")
 DB_NAME = os.getenv("LOCAL_DB_NAME" if USE_LOCAL_DB else "DB_NAME", "former")
 
 DATABASE_URL = os.getenv(
     "LOCAL_DATABASE_URL" if USE_LOCAL_DB else "DATABASE_URL",
-    f"mssql+pyodbc://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+    f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
+AIRFLOW_DB_URI = os.getenv(
+    "LOCAL_AIRFLOW_DB_URI" if USE_LOCAL_DB else "AIRFLOW_DB_URI",
+    DATABASE_URL,
 )
 
-AIRFLOW_HOST = os.getenv("LOCAL_AIRFLOW_HOST" if USE_LOCAL_DB else "AIRFLOW_HOST", "http://localhost:9090")
+AIRFLOW_HOST = os.getenv(
+    "LOCAL_AIRFLOW_HOST" if USE_LOCAL_DB else "AIRFLOW_HOST",
+    "http://localhost:9090" if USE_LOCAL_DB else "http://localhost:8080",
+)
 AIRFLOW_BASE_URL = os.getenv(
     "LOCAL_AIRFLOW_BASE_URL" if USE_LOCAL_DB else "AIRFLOW_BASE_URL",
     f"{AIRFLOW_HOST}/api/v2"
 )
-
-AIRFLOW_MODE = APP_ENV
 
 # SQLAlchemy settings
 SQLALCHEMY_ECHO = os.getenv("SQLALCHEMY_ECHO", "False").lower() == "true"
@@ -87,12 +91,3 @@ MAIL_SSL = os.getenv("MAIL_SSL", "false").lower() == "true"
 # Email verification and password reset URLs (for links sent in emails)
 EMAIL_VERIFY_URL = os.getenv("EMAIL_VERIFY_URL", f"{FRONTEND_URL}/verify-email")
 PASSWORD_RESET_URL = os.getenv("PASSWORD_RESET_URL", f"{FRONTEND_URL}/reset-password")
-
-AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
-AZURE_RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
-
-AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID")
-AZURE_CLIENT_SECRET = os.getenv("AZURE_CLIENT_SECRET")
-AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID")
-
-ACI_IMAGE = os.getenv("ACI_IMAGE")

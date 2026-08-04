@@ -10,10 +10,6 @@ engine = create_engine(
     echo=SQLALCHEMY_ECHO,
     pool_pre_ping=True,  # Verify connections before using them
     pool_recycle=3600,   # Recycle connections after 1 hour
-    connect_args={
-        "driver": "ODBC Driver 18 for SQL Server",
-        "TrustServerCertificate": "yes"
-    } if "mssql" in DATABASE_URL else {}
 )
 
 # Create session factory

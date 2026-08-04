@@ -483,8 +483,12 @@ def airflow_trigger(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to call Airflow API: {exc}")
 
-    dag_run_id = response_payload.get("dag_run_id") or response_payload.get("dag_run", {}).get("dag_run_id", "")
-    state = response_payload.get("state", "unknown")
+    dag_run_id = (
+        response_payload.get("dag_run_id")
+        or response_payload.get("dag_run", {}).get("dag_run_id")
+        or dag_run_id
+    )
+    state = response_payload.get("state", "queued")
 
     return AirflowTriggerResponse(
         dag_id=payload.dag_id,

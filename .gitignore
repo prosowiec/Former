@@ -8,3 +8,5 @@ former/front/.env.local
 former/front/.env.production
 auth_users.json
 app.yaml
+__pycache__/
+*.py[cod]

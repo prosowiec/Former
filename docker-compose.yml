@@ -1,6 +1,7 @@
 x-airflow-env: &airflow-env
   AIRFLOW__CORE__EXECUTOR: LocalExecutor
-  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${LOCAL_DB_USER:-former}:${LOCAL_DB_PASSWORD:-former}@host.docker.internal:${LOCAL_DB_PORT:-5432}/${LOCAL_DB_NAME:-former}
+  DATABASE_URL: postgresql+psycopg2://${LOCAL_DB_USER:-former}:${LOCAL_DB_PASSWORD:-former}@host.docker.internal:${LOCAL_DB_PORT:-5432}/${LOCAL_DB_NAME:-former}
   AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-api-server:8080/execution/"
   AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
   AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
@@ -12,31 +13,12 @@ x-airflow-env: &airflow-env
   PYTHONPATH: /opt/airflow
 
 services:
-  postgres:
-    image: postgres:13
-    environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
-      TZ: UTC
-    volumes:
-      - postgres-db-volume:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "airflow"]
-      interval: 5s
-      retries: 10
   airflow-init:
     build:
       context: .
       dockerfile: Dockerfile.airflow
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       <<: *airflow-env
-      DATABASE_URL: ${DATABASE_URL}
     command: ["airflow", "db", "migrate"]
 
   airflow-api-server:
@@ -119,15 +101,7 @@ services:
       AIRFLOW_DAG_ID: form_filler_plan
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      # MSSQL Database Configuration - connect to host's local MSSQL
-      DB_USER: ${DB_USER:-sa}
-      DB_PASSWORD: ${DB_PASSWORD:-YourPassword123!}
-      DB_HOST: ${DB_HOST:-host.docker.internal}
-      DB_PORT: ${DB_PORT:-1433}
-      DB_NAME: ${DB_NAME:-former}
-      AIRFLOW_CONN_MSSQL_DEFAULT: ${DATABASE_URL}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      DATABASE_URL: postgresql+psycopg2://${LOCAL_DB_USER:-former}:${LOCAL_DB_PASSWORD:-former}@host.docker.internal:${LOCAL_DB_PORT:-5432}/${LOCAL_DB_NAME:-former}
     depends_on:
       airflow-api-server:
         condition: service_started
@@ -141,7 +115,7 @@ services:
       - ./former/front:/app
       - node_modules_front:/app/node_modules
     ports:
-      - "80:5173"
+      - "80:80"
     environment:
       CHOKIDAR_USEPOLLING: "true"
     depends_on:
@@ -164,6 +138,5 @@ services:
     env_file:
       - .env
 volumes:
-  postgres-db-volume:
   airflow-logs:
   node_modules_front:

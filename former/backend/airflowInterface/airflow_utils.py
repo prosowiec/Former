@@ -5,9 +5,6 @@ from typing import Dict, Optional
 
 import httpx
 from sqlalchemy import create_engine, text
-from azure.identity import ClientSecretCredential
-from azure.mgmt.containerinstance import ContainerInstanceManagementClient
-
 from former.config import AIRFLOW_DB_URI, AIRFLOW_HOST, AIRFLOW_PASSWORD, AIRFLOW_USERNAME
 
 
