@@ -7,7 +7,9 @@ database running on the local machine. Docker Compose reaches it through
 ## Start with an empty database
 
 Create the `former` database and user in your local PostgreSQL installation.
-Copy `.env.example` to `.env`, replace `change-me`, then run:
+Copy `.env.example` to `.env`, replace `change-me`, then run. The `.env` file
+is exclusively for local development; production uses the canonical variable
+contract in `.env.production.example` and deployment-managed secrets.
 
 ```sh
 docker compose up --build

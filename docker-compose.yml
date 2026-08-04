@@ -1,7 +1,8 @@
 x-airflow-env: &airflow-env
+  APP_ENV: local
   AIRFLOW__CORE__EXECUTOR: LocalExecutor
-  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${LOCAL_DB_USER:-former}:${LOCAL_DB_PASSWORD:-former}@host.docker.internal:${LOCAL_DB_PORT:-5432}/${LOCAL_DB_NAME:-former}
-  DATABASE_URL: postgresql+psycopg2://${LOCAL_DB_USER:-former}:${LOCAL_DB_PASSWORD:-former}@host.docker.internal:${LOCAL_DB_PORT:-5432}/${LOCAL_DB_NAME:-former}
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${DATABASE_URL:?Set DATABASE_URL in the local .env file}
+  DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in the local .env file}
   AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-api-server:8080/execution/"
   AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
   AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
@@ -96,12 +97,14 @@ services:
     ports:
       - "8000:8000"
     environment:
+      APP_ENV: local
+      FRONTEND_URL: "http://localhost"
       AIRFLOW_HOST: "http://airflow-api-server:8080"
       AIRFLOW_BASE_URL: "http://airflow-api-server:8080/api/v2"
       AIRFLOW_DAG_ID: form_filler_plan
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      DATABASE_URL: postgresql+psycopg2://${LOCAL_DB_USER:-former}:${LOCAL_DB_PASSWORD:-former}@host.docker.internal:${LOCAL_DB_PORT:-5432}/${LOCAL_DB_NAME:-former}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in the local .env file}
     depends_on:
       airflow-api-server:
         condition: service_started

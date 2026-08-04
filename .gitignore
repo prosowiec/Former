@@ -1,5 +1,9 @@
 data/
 .env
+.env.local
+.env.production
+!.env.example
+!.env.production.example
 refrenceFiles/
 simple_auth_manager_passwords.json.generated
 former.egg-info

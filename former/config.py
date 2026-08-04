@@ -30,12 +30,17 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI")
 
-APP_ENV = os.getenv("ENV", os.getenv("AIRFLOW_MODE", "PROD")).upper()
-USE_LOCAL_DB = APP_ENV == "LOCAL"
+APP_ENV = os.getenv("APP_ENV", "production").strip().lower()
+if APP_ENV not in {"local", "production", "test"}:
+    raise RuntimeError(
+        "APP_ENV must be one of: local, production, test "
+        f"(received {APP_ENV!r})"
+    )
 
+IS_LOCAL = APP_ENV == "local"
 FRONTEND_URL = os.getenv(
-    "LOCAL_FRONTEND_URL" if APP_ENV == "LOCAL" else "FRONTEND_URL",
-    "http://localhost:5173" if APP_ENV == "LOCAL" else "https://former.pl.com",
+    "FRONTEND_URL",
+    "http://localhost" if IS_LOCAL else "https://former.com.pl",
 )
 
 # Stripe Configuration
@@ -44,29 +49,27 @@ STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
 
 AUTH_USERS_FILE = os.getenv("AUTH_USERS_FILE", os.path.join(os.path.dirname(__file__), "auth_users.json"))
 
-# PostgreSQL database shared by the application and Airflow metadata.
-DB_USER = os.getenv("LOCAL_DB_USER" if USE_LOCAL_DB else "DB_USER", "former")
-DB_PASSWORD = os.getenv("LOCAL_DB_PASSWORD" if USE_LOCAL_DB else "DB_PASSWORD", "former")
-DB_HOST = os.getenv("LOCAL_DB_HOST" if USE_LOCAL_DB else "DB_HOST", "postgres")
-DB_PORT = os.getenv("LOCAL_DB_PORT" if USE_LOCAL_DB else "DB_PORT", "5432")
-DB_NAME = os.getenv("LOCAL_DB_NAME" if USE_LOCAL_DB else "DB_NAME", "former")
+# Every environment uses the same variable names. The deployment layer selects
+# their values; application code never falls back from production to LOCAL_*.
+DB_USER = os.getenv("DB_USER", "former")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "former")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME", "former")
 
 DATABASE_URL = os.getenv(
-    "LOCAL_DATABASE_URL" if USE_LOCAL_DB else "DATABASE_URL",
-    f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    "DATABASE_URL",
+    f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
 )
-AIRFLOW_DB_URI = os.getenv(
-    "LOCAL_AIRFLOW_DB_URI" if USE_LOCAL_DB else "AIRFLOW_DB_URI",
-    DATABASE_URL,
-)
+AIRFLOW_DB_URI = os.getenv("AIRFLOW_DB_URI", DATABASE_URL)
 
 AIRFLOW_HOST = os.getenv(
-    "LOCAL_AIRFLOW_HOST" if USE_LOCAL_DB else "AIRFLOW_HOST",
-    "http://localhost:9090" if USE_LOCAL_DB else "http://localhost:8080",
+    "AIRFLOW_HOST",
+    "http://localhost:9090" if IS_LOCAL else "http://localhost:8080",
 )
 AIRFLOW_BASE_URL = os.getenv(
-    "LOCAL_AIRFLOW_BASE_URL" if USE_LOCAL_DB else "AIRFLOW_BASE_URL",
-    f"{AIRFLOW_HOST}/api/v2"
+    "AIRFLOW_BASE_URL",
+    f"{AIRFLOW_HOST}/api/v2",
 )
 
 # SQLAlchemy settings
