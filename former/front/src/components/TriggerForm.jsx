@@ -177,7 +177,7 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
       {/* Row 1: name + URL */}
       <div className="trigger-form__section">
         <div className="trigger-form__inline">
-          <div className="field" style={{ minWidth: "170px" }}>
+          <div className="field field--run-name">
           <label htmlFor="run_name">
             Run name <span className="required-mark">*</span>
           </label>
@@ -192,7 +192,7 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
           />
         </div>
 
-        <div className="field field--grow">
+        <div className="field field--grow field--form-url">
           <label htmlFor="form_url">
             Form URL <span className="required-mark">*</span>
           </label>
@@ -206,7 +206,7 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
           />
         </div>
 
-        <div className="field">
+        <div className="field field--runs">
           <label htmlFor="num_executions">Runs</label>
           <input
             id="num_executions"

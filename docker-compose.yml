@@ -43,8 +43,6 @@ services:
     command: ["airflow", "api-server"]
     env_file:
       - .env
-
-
   airflow-scheduler:
     build:
       context: .
