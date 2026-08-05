@@ -2,9 +2,10 @@
 
 ## Service entry point
 
-`former/backend/api.py` creates the FastAPI application. On startup it calls
-`Base.metadata.create_all()` and exposes OpenAPI documentation at `/docs` and
-`/redoc` under normal FastAPI defaults.
+`former/backend/api.py` creates the FastAPI application, installs middleware,
+and registers domain routers from `former/backend/routers`. Its lifespan calls
+`Base.metadata.create_all()` at startup. OpenAPI documentation remains at
+`/docs` and `/redoc` under normal FastAPI defaults.
 
 Authentication uses `Authorization: Bearer <access-token>`. Access and refresh
 tokens are HS256 JWTs with the user's email in `sub`; refresh tokens also carry

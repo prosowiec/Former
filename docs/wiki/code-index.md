@@ -23,7 +23,12 @@
 | Path | Role |
 | --- | --- |
 | `former/config.py` | Canonical runtime configuration and environment validation |
-| `former/backend/api.py` | FastAPI app, middleware, routes, auth dependencies |
+| `former/backend/api.py` | FastAPI lifecycle, middleware, and router registration |
+| `former/backend/dependencies.py` | Shared current-user and verified-user dependencies |
+| `former/backend/routers/auth.py` | Login, OAuth, tokens, verification, and passwords |
+| `former/backend/routers/airflow.py` | Run listing, triggering, pacing, and cancellation |
+| `former/backend/routers/billing.py` | Billing balance, Stripe, and transaction endpoints |
+| `former/backend/routers/health.py` | Public process health endpoint |
 | `former/backend/auth.py` | JWT and Google OAuth primitives |
 | `former/backend/users.py` | User, verification, and password operations |
 | `former/backend/db.py` | SQLAlchemy engine/session/base |
