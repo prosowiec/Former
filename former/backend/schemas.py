@@ -25,6 +25,7 @@ class AirflowTriggerResponse(BaseModel):
     num_executions: int
     base_interval_minutes: float
     interval_jitter_minutes: float
+    expected_end_at: str
     airflow_response: Dict
 
 
@@ -66,6 +67,7 @@ class AirflowRunResponse(BaseModel):
     base_interval_minutes: float
     interval_jitter_minutes: float
     created_at: str
+    expected_end_at: str
     state: str
     progress: Optional[Dict] = None
     run_name: str

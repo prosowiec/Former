@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../api/client";
+import { formatExpectedFillEnd } from "../hooks/runsUtils";
 
 const DEFAULT_DAG_ID = import.meta.env.VITE_DEFAULT_DAG_ID ?? "form_filler_plan";
 
@@ -137,6 +138,7 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
   const periodMinutes = ratePeriod === "day" ? 24 * 60 : 60;
   const maxFillRate = 12;
   const baseInterval = periodMinutes / Math.max(1, fillRate);
+  const expectedFillEnd = formatExpectedFillEnd(Date.now(), numExecutions, baseInterval);
 
   function setAxis(axisIdx, stepIdx) {
     setAxisValues((prev) => prev.map((v, i) => (i === axisIdx ? stepIdx : v)));
@@ -264,6 +266,13 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
             : "Trigger"}
         </button>
         </div>
+      </div>
+
+      {/* Expected completion in the browser's local timezone */}
+      <div className="expected-fill-end" aria-live="polite">
+        <span className="expected-fill-end__label">Expected fill end</span>
+        <strong>{expectedFillEnd}</strong>
+        <span className="expected-fill-end__hint">browser local time</span>
       </div>
 
       {/* Fills preview — always shown when billing is available */}

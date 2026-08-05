@@ -42,6 +42,7 @@ erDiagram
       string run_id
       string form_url
       int num_executions
+      datetime expected_end_at
       string state
     }
     AIRFLOW_PROGRESS {
@@ -93,8 +94,10 @@ The JSON metadata column keeps provider details.
 ### `airflow_trigger_requests`
 
 Application-owned audit record for every accepted parent DAG run. It stores
-the user email, scheduling parameters, display name, five personality axes,
-and application state. `run_id` is not declared unique or a foreign key.
+the user email, scheduling parameters, timezone-aware expected completion,
+display name, five personality axes, and application state. `run_id` is not
+declared unique or a foreign key. `expected_end_at` is persisted as PostgreSQL
+`TIMESTAMP WITH TIME ZONE` and returned by the API as UTC ISO 8601.
 
 ### `airflow_progress`
 

@@ -66,6 +66,8 @@ least five minutes, enforcing a maximum of 12 fills per hour. The UI expresses
 that interval as forms per hour or day and caps the visible pace value at 12.
 Jitter is derived by the backend from `SCHEDULER_JITTER_RATIO` and capped by
 `SCHEDULER_MAX_JITTER_MINUTES`; clients cannot configure it.
+The trigger response and run-list response include `expected_end_at` as a UTC
+ISO 8601 timestamp. The frontend converts it to the browser's local timezone.
 
 ## Backend modules
 

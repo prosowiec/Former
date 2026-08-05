@@ -2,6 +2,8 @@ data/
 .env
 .env.local
 .env.production
+azure-key-vault-secrets.production.json
+app.azure.generated.yaml
 !.env.example
 !.env.production.example
 refrenceFiles/

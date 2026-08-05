@@ -17,3 +17,29 @@ export function formatFillRate(intervalMinutes) {
   const unit = useDays ? "day" : "hour";
   return `${rate} ${rate === 1 ? "form" : "forms"} per ${unit}`;
 }
+
+export function formatExpectedFillEnd(startTime, totalFills, intervalMinutes) {
+  const start = new Date(startTime);
+  const fills = Math.max(1, Number(totalFills) || 1);
+  const interval = Number(intervalMinutes);
+  if (Number.isNaN(start.getTime()) || !Number.isFinite(interval) || interval <= 0) {
+    return "Unavailable";
+  }
+
+  const expectedEnd = new Date(start.getTime() + fills * interval * 60_000);
+  return formatBrowserDateTime(expectedEnd);
+}
+
+export function formatBrowserDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unavailable";
+
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}

@@ -2,7 +2,7 @@
 
 import hashlib
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Dict, Optional
 
 import httpx
@@ -61,6 +61,13 @@ def calculate_scheduler_jitter(base_interval_minutes: float) -> float:
     )
 
 
+def to_utc_iso(value: datetime | None) -> str:
+    timestamp = value or datetime.now(timezone.utc)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return timestamp.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 @router.get("/runs", response_model=list[AirflowRunResponse])
 def list_airflow_runs(
     current_user: Annotated[Dict, Depends(get_current_user)],
@@ -95,11 +102,8 @@ def list_airflow_runs(
                 "num_executions": run.num_executions,
                 "base_interval_minutes": run.base_interval_minutes,
                 "interval_jitter_minutes": run.interval_jitter_minutes,
-                "created_at": (
-                    run.created_at.isoformat()
-                    if run.created_at
-                    else datetime.utcnow().isoformat()
-                ),
+                "created_at": to_utc_iso(run.created_at),
+                "expected_end_at": to_utc_iso(run.expected_end_at),
                 "state": state,
                 "run_name": run.run_name,
                 "age_profile": run.age_profile,
@@ -132,6 +136,9 @@ def airflow_trigger(
         interval_jitter_minutes = calculate_scheduler_jitter(
             payload.base_interval_minutes
         )
+        expected_end_at = datetime.now(timezone.utc) + timedelta(
+            minutes=payload.num_executions * payload.base_interval_minutes
+        )
         response_payload = trigger_airflow_dag(
             str(payload.form_url),
             payload.dag_id,
@@ -152,6 +159,7 @@ def airflow_trigger(
                 num_executions=payload.num_executions,
                 base_interval_minutes=payload.base_interval_minutes,
                 interval_jitter_minutes=interval_jitter_minutes,
+                expected_end_at=expected_end_at,
                 age_profile=(
                     payload.conf_personality.get("age_profile")
                     if payload.conf_personality
@@ -203,6 +211,7 @@ def airflow_trigger(
         num_executions=payload.num_executions,
         base_interval_minutes=payload.base_interval_minutes,
         interval_jitter_minutes=interval_jitter_minutes,
+        expected_end_at=to_utc_iso(expected_end_at),
         airflow_response=response_payload,
     )
 

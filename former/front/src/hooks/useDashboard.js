@@ -24,6 +24,7 @@ export function useDashboard() {
       num_executions:         result.num_executions,
       base_interval_minutes:  result.base_interval_minutes,
       interval_jitter_minutes: result.interval_jitter_minutes,
+      expected_end_at:        result.expected_end_at,
       created_at:             new Date().toISOString(),
     };
     addRun(newRun);
