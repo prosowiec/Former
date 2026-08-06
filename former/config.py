@@ -14,8 +14,9 @@ def require_env(name: str) -> str:
 
 AIRFLOW_USERNAME = os.getenv("AIRFLOW_USERNAME", "admin")
 AIRFLOW_PASSWORD = os.getenv("AIRFLOW_PASSWORD", "admin")
-AIRFLOW_DB_URI = os.getenv("AIRFLOW_DB_URI", "postgresql+psycopg2://airflow:airflow@postgres/airflow")
 DEFAULT_DAG_ID = os.getenv("AIRFLOW_DAG_ID", "form_filler_plan")
+SCHEDULER_JITTER_RATIO = max(0.0, float(os.getenv("SCHEDULER_JITTER_RATIO", "0.20")))
+SCHEDULER_MAX_JITTER_MINUTES = max(0.0, float(os.getenv("SCHEDULER_MAX_JITTER_MINUTES", "2.0")))
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -31,12 +32,17 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI")
 
-APP_ENV = os.getenv("ENV", os.getenv("AIRFLOW_MODE", "PROD")).upper()
-USE_LOCAL_DB = APP_ENV == "LOCAL"
+APP_ENV = os.getenv("APP_ENV", "production").strip().lower()
+if APP_ENV not in {"local", "production", "test"}:
+    raise RuntimeError(
+        "APP_ENV must be one of: local, production, test "
+        f"(received {APP_ENV!r})"
+    )
 
+IS_LOCAL = APP_ENV == "local"
 FRONTEND_URL = os.getenv(
-    "LOCAL_FRONTEND_URL" if APP_ENV == "LOCAL" else "FRONTEND_URL",
-    "http://localhost:5173" if APP_ENV == "LOCAL" else "https://former.pl.com",
+    "FRONTEND_URL",
+    "http://localhost" if IS_LOCAL else "https://former.com.pl",
 )
 
 # Stripe Configuration
@@ -45,25 +51,28 @@ STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
 
 AUTH_USERS_FILE = os.getenv("AUTH_USERS_FILE", os.path.join(os.path.dirname(__file__), "auth_users.json"))
 
-# MSSQL Database Configuration
-DB_USER = os.getenv("LOCAL_DB_USER" if USE_LOCAL_DB else "DB_USER", "sa")
-DB_PASSWORD = os.getenv("LOCAL_DB_PASSWORD" if USE_LOCAL_DB else "DB_PASSWORD", "YourPassword123!")
-DB_HOST = os.getenv("LOCAL_DB_HOST" if USE_LOCAL_DB else "DB_HOST", "host.docker.internal")
-DB_PORT = os.getenv("LOCAL_DB_PORT" if USE_LOCAL_DB else "DB_PORT", "1433")
-DB_NAME = os.getenv("LOCAL_DB_NAME" if USE_LOCAL_DB else "DB_NAME", "former")
+# Every environment uses the same variable names. The deployment layer selects
+# their values; application code never falls back from production to LOCAL_*.
+DB_USER = os.getenv("DB_USER", "former")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "former")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME", "former")
 
 DATABASE_URL = os.getenv(
-    "LOCAL_DATABASE_URL" if USE_LOCAL_DB else "DATABASE_URL",
-    f"mssql+pyodbc://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+    "DATABASE_URL",
+    f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
 )
+AIRFLOW_DB_URI = os.getenv("AIRFLOW_DB_URI", DATABASE_URL)
 
-AIRFLOW_HOST = os.getenv("LOCAL_AIRFLOW_HOST" if USE_LOCAL_DB else "AIRFLOW_HOST", "http://localhost:9090")
+AIRFLOW_HOST = os.getenv(
+    "AIRFLOW_HOST",
+    "http://localhost:9090" if IS_LOCAL else "http://localhost:8080",
+)
 AIRFLOW_BASE_URL = os.getenv(
-    "LOCAL_AIRFLOW_BASE_URL" if USE_LOCAL_DB else "AIRFLOW_BASE_URL",
-    f"{AIRFLOW_HOST}/api/v2"
+    "AIRFLOW_BASE_URL",
+    f"{AIRFLOW_HOST}/api/v2",
 )
-
-AIRFLOW_MODE = APP_ENV
 
 # SQLAlchemy settings
 SQLALCHEMY_ECHO = os.getenv("SQLALCHEMY_ECHO", "False").lower() == "true"
@@ -87,12 +96,3 @@ MAIL_SSL = os.getenv("MAIL_SSL", "false").lower() == "true"
 # Email verification and password reset URLs (for links sent in emails)
 EMAIL_VERIFY_URL = os.getenv("EMAIL_VERIFY_URL", f"{FRONTEND_URL}/verify-email")
 PASSWORD_RESET_URL = os.getenv("PASSWORD_RESET_URL", f"{FRONTEND_URL}/reset-password")
-
-AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
-AZURE_RESOURCE_GROUP = os.getenv("AZURE_RESOURCE_GROUP")
-
-AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID")
-AZURE_CLIENT_SECRET = os.getenv("AZURE_CLIENT_SECRET")
-AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID")
-
-ACI_IMAGE = os.getenv("ACI_IMAGE")

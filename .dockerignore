@@ -1,0 +1,11 @@
+.git
+.env
+.env.*
+!.env.example
+!.env.production.example
+**/__pycache__
+**/*.pyc
+**/node_modules
+former/front/dist
+.pytest_cache
+app.yaml

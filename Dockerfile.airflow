@@ -26,8 +26,17 @@ RUN apt-get update && apt-get install -y \
 USER airflow
 
 COPY requirements.txt .
-
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browser
 RUN playwright install chromium
+
+# Azure does not mount the local repository, so package the DAGs and application code.
+COPY --chown=airflow:root dags /opt/airflow/dags
+COPY --chown=airflow:root former /opt/airflow/former
+COPY --chown=airflow:root simple_auth_manager_passwords.json.generated /opt/airflow/simple_auth_manager_passwords.json.generated
+
+ENV PYTHONPATH=/opt/airflow
+
+# One always-running process supervises the API server, scheduler, DAG processor,
+# and triggerer. Azure overrides the metadata database connection at deployment.
+CMD ["xvfb-run", "-a", "--server-args=-screen 0 1920x1080x24", "airflow", "standalone"]

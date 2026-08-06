@@ -91,6 +91,7 @@ class AirflowTriggerInternalRequest(Base):
     formality = Column(String(50), nullable=True)
     state = Column(String(50), default="active", nullable=False)  # active, cancelled
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expected_end_at = Column(DateTime(timezone=True), nullable=False)
 
 class AirflowProgress(Base):
     """Model to track Airflow DAG run progress."""

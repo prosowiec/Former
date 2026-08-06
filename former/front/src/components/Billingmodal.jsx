@@ -52,7 +52,7 @@ function CheckoutForm({ amountEur, fills, onSuccess, onCancel }) {
     try {
       const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
         elements,
-        confirmParams: { return_url: window.location.origin + "/home", form_fills },
+        confirmParams: { return_url: window.location.origin + "/home" },
         redirect: "if_required",
       });
 

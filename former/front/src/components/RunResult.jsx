@@ -1,6 +1,7 @@
 import { useState } from "react";
 import RunStageIndicator from "./RunStageIndicator";
 import { api } from "../api/client";
+import { formatBrowserDateTime, formatExpectedFillEnd, formatFillRate } from "../hooks/runsUtils";
 
 const STATE_COLORS = {
   queued:    "var(--yellow)",
@@ -186,11 +187,18 @@ function RunModal({ run, onClose, onCancelRequest }) {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                {total > 1 && (
-                  <span className="modal__exec-interval">
-                    Every {run.base_interval_minutes} min ± {run.interval_jitter_minutes} min
+                <div className="modal__exec-schedule">
+                  {total > 1 && <span>{formatFillRate(run.base_interval_minutes)}</span>}
+                  <span>
+                    Expected fill end: {run.expected_end_at
+                      ? formatBrowserDateTime(run.expected_end_at)
+                      : formatExpectedFillEnd(
+                          run.created_at,
+                          total,
+                          run.base_interval_minutes,
+                        )}
                   </span>
-                )}
+                </div>
               </div>
             </div>
           )}

@@ -11,8 +11,11 @@ class AirflowTriggerRequest(BaseModel):
     dag_id: Optional[str] = DEFAULT_DAG_ID
     run_id: Optional[str] = None
     num_executions: int = Field(1, ge=1)
-    base_interval_minutes: float = Field(10.0, ge=0.1)
-    interval_jitter_minutes: float = Field(2.0, ge=0.0)
+    base_interval_minutes: float = Field(
+        10.0,
+        ge=5.0,
+        description="Interval between fills; minimum five minutes (maximum 12 fills per hour).",
+    )
     conf_personality: Optional[Dict[str, str]] = None
 
 class AirflowTriggerResponse(BaseModel):
@@ -22,6 +25,7 @@ class AirflowTriggerResponse(BaseModel):
     num_executions: int
     base_interval_minutes: float
     interval_jitter_minutes: float
+    expected_end_at: str
     airflow_response: Dict
 
 
@@ -63,6 +67,7 @@ class AirflowRunResponse(BaseModel):
     base_interval_minutes: float
     interval_jitter_minutes: float
     created_at: str
+    expected_end_at: str
     state: str
     progress: Optional[Dict] = None
     run_name: str

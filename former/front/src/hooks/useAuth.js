@@ -15,9 +15,9 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    // Restore tokens from localStorage on component mount
-    const accessToken = localStorage.getItem("access_token");
-    const refreshToken = localStorage.getItem("refresh_token");
+    // Keep restoration consistent with api/client.js, which uses sessionStorage.
+    const accessToken = sessionStorage.getItem("access_token");
+    const refreshToken = sessionStorage.getItem("refresh_token");
     if (accessToken && refreshToken) {
       setTokens(accessToken, refreshToken);
     }

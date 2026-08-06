@@ -72,13 +72,13 @@ def test_airflow_trigger_endpoint_multiple_runs(monkeypatch):
     assert payload["dag_id"] == "form_filler_plan"
     assert payload["num_executions"] == 3
     assert payload["base_interval_minutes"] == 10
-    assert payload["interval_jitter_minutes"] == 1
+    assert payload["interval_jitter_minutes"] == 2
     assert payload["dag_run_id"] == "test-run-id"
     assert payload["state"] == "queued"
     assert len(called) == 1
     assert called[0][3] == 3
     assert called[0][4] == 10
-    assert called[0][5] == 1
+    assert called[0][5] == 2
 
 
 def test_list_airflow_runs_endpoint(monkeypatch):
