@@ -10,25 +10,71 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$resolvedSecretsFile = (Resolve-Path -LiteralPath $SecretsFile).Path
-$secrets = Get-Content -LiteralPath $resolvedSecretsFile -Raw | ConvertFrom-Json
+Set-StrictMode -Version Latest
 
-if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
-    throw "Azure CLI ('az') is not installed or is not available on PATH."
+function Find-AzureCli {
+    $candidates = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($entry in ($env:PATH -split ";")) {
+        $directory = $entry.Trim().Trim('"')
+        if (-not [string]::IsNullOrWhiteSpace($directory)) {
+            $candidates.Add((Join-Path $directory "az.cmd"))
+            $candidates.Add((Join-Path $directory "az.exe"))
+        }
+    }
+
+    $candidates.Add("C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd")
+    $candidates.Add("C:\Program Files (x86)\Microsoft SDKs\Azure\CLI2\wbin\az.cmd")
+
+    return $candidates |
+        Select-Object -Unique |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Select-Object -First 1
 }
 
-az account show --only-show-errors 1>$null
+$resolvedSecretsFile = (Resolve-Path -LiteralPath $SecretsFile).Path
+Write-Host "Reading secrets from $resolvedSecretsFile ..."
+
+try {
+    $secrets = Get-Content -LiteralPath $resolvedSecretsFile -Raw | ConvertFrom-Json
+}
+catch {
+    throw "Invalid JSON in '$resolvedSecretsFile': $($_.Exception.Message)"
+}
+
+$secretProperties = @($secrets.PSObject.Properties)
+if ($secretProperties.Count -eq 0) {
+    throw "The secrets file '$resolvedSecretsFile' contains no secrets."
+}
+
+$az = Find-AzureCli
+if (-not $az) {
+    throw "Azure CLI ('az') is not installed or is not available on PATH."
+}
+Write-Host "Using Azure CLI: $az"
+
+Write-Host "Checking Azure login ..."
+& $az account show --only-show-errors --output none
 if ($LASTEXITCODE -ne 0) {
     throw "Azure CLI is not authenticated. Run 'az login' first."
 }
 
-foreach ($secret in $secrets.PSObject.Properties) {
+Write-Host "Checking access to Key Vault '$VaultName' ..."
+& $az keyvault show --name $VaultName --only-show-errors --output none
+if ($LASTEXITCODE -ne 0) {
+    throw "Cannot access Key Vault '$VaultName'. Check its name, subscription, and your Key Vault permissions."
+}
+
+$secretNumber = 0
+foreach ($secret in $secretProperties) {
+    $secretNumber++
     $value = [string]$secret.Value
     if ([string]::IsNullOrWhiteSpace($value) -or $value -eq "replace-me") {
         throw "Secret '$($secret.Name)' has no production value."
     }
 
-    az keyvault secret set `
+    Write-Host "Uploading $secretNumber/$($secretProperties.Count): $($secret.Name) ..."
+    & $az keyvault secret set `
         --vault-name $VaultName `
         --name $secret.Name `
         --value $value `
@@ -39,11 +85,9 @@ foreach ($secret in $secrets.PSObject.Properties) {
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to upload secret '$($secret.Name)'."
     }
-    Write-Host "Uploaded $($secret.Name)"
 }
 
-$secretCount = @($secrets.PSObject.Properties).Count
-Write-Host "Uploaded $secretCount secrets to Key Vault '$VaultName'."
+Write-Host "Uploaded $($secretProperties.Count) secrets to Key Vault '$VaultName'."
 
 $resolvedYaml = (Get-Content -LiteralPath $AppYamlTemplate -Raw).Replace(
     "YOUR_KEY_VAULT_NAME",
