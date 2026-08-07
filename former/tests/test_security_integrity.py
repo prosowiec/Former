@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from former.backend.models import AirflowTriggerInternalRequest, Base, User, UserBillingInfo
 import former.backend.routers.airflow as airflow_router_module
 import former.backend.routers.billing as billing_router_module
+from dags.utils import _normalize_form_url
 from former.backend.schemas import AirflowTriggerRequest, ChangePasswordRequest, ConfirmPaymentRequest
 
 
@@ -24,6 +25,12 @@ def test_form_destination_allowlist_blocks_ssrf_targets():
     ):
         with pytest.raises(ValidationError):
             AirflowTriggerRequest(form_url=url)
+
+
+def test_form_cache_url_normalization_accepts_query_parameters():
+    assert _normalize_form_url(
+        "https://docs.google.com/forms/d/e/form-id/viewform?usp=header&utm_source=test&entry.1=value"
+    ) == "https://docs.google.com/forms/d/e/form-id/viewform?entry.1=value"
 
 
 def test_change_password_contract_uses_old_password():
