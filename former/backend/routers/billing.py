@@ -1,9 +1,11 @@
 """Billing balance, transaction, and Stripe endpoints."""
 
+from decimal import Decimal
 from typing import Annotated, Dict
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -13,12 +15,10 @@ from ..schemas import (
     ConfirmPaymentRequest,
     CreatePaymentIntentRequest,
     CreatePaymentIntentResponse,
-    StripeTransactionRequest,
     StripeTransactionResponse,
-    UpdateFormFillsRequest,
     UserBillingInfoResponse,
 )
-from ...config import STRIPE_SECRET_KEY
+from ...config import STRIPE_FILLS_PER_EUR, STRIPE_SECRET_KEY
 
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -66,63 +66,6 @@ def get_billing_info(
     )
 
 
-@router.post("/transaction", response_model=StripeTransactionResponse)
-def create_billing_transaction(
-    transaction: StripeTransactionRequest,
-    current_user: Annotated[Dict, Depends(get_current_user)],
-    db: Session = Depends(get_db),
-):
-    existing = (
-        db.query(StripeTransaction)
-        .filter_by(stripe_transaction_id=transaction.stripe_transaction_id)
-        .first()
-    )
-    if existing:
-        raise HTTPException(status_code=400, detail="Transaction already recorded")
-
-    stripe_transaction = StripeTransaction(
-        user_id=current_user["id"],
-        stripe_transaction_id=transaction.stripe_transaction_id,
-        amount=transaction.amount,
-        currency=transaction.currency,
-        form_fills_purchased=transaction.form_fills_purchased,
-        status=transaction.status,
-        description=transaction.description,
-        stripe_metadata=transaction.stripe_metadata,
-    )
-    db.add(stripe_transaction)
-
-    if transaction.status == "succeeded":
-        billing_info = _billing_for_user(db, current_user["id"])
-        billing_info.total_amount_paid += transaction.amount
-        billing_info.form_fills_remaining += transaction.form_fills_purchased
-
-    db.commit()
-    db.refresh(stripe_transaction)
-    return _transaction_response(stripe_transaction)
-
-
-@router.post("/deduct-form-fills")
-def deduct_form_fills(
-    request_data: UpdateFormFillsRequest,
-    current_user: Annotated[Dict, Depends(get_current_user)],
-    db: Session = Depends(get_db),
-):
-    billing_info = _billing_for_user(db, current_user["id"])
-    if billing_info.form_fills_remaining < request_data.form_fills_to_deduct:
-        raise HTTPException(status_code=400, detail="Insufficient form fills remaining")
-
-    billing_info.form_fills_remaining -= request_data.form_fills_to_deduct
-    billing_info.form_fills_used += request_data.form_fills_to_deduct
-    db.commit()
-    db.refresh(billing_info)
-    return {
-        "form_fills_remaining": billing_info.form_fills_remaining,
-        "form_fills_used": billing_info.form_fills_used,
-        "message": f"Successfully deducted {request_data.form_fills_to_deduct} form fills",
-    }
-
-
 @router.get("/transactions", response_model=list[StripeTransactionResponse])
 def get_transactions(
     current_user: Annotated[Dict, Depends(get_current_user)],
@@ -157,8 +100,14 @@ def create_payment_intent(
             billing_info.stripe_customer_id = customer.id
             db.commit()
 
+        amount_cents = (request_data.form_fills_purchased * 100) // STRIPE_FILLS_PER_EUR
+        if amount_cents <= 0 or amount_cents * STRIPE_FILLS_PER_EUR != request_data.form_fills_purchased * 100:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Fill count must map to whole cents at {STRIPE_FILLS_PER_EUR} fills/EUR",
+            )
         intent = stripe.PaymentIntent.create(
-            amount=int(request_data.amount_eur * 100),
+            amount=amount_cents,
             currency="eur",
             customer=billing_info.stripe_customer_id,
             metadata={
@@ -169,7 +118,7 @@ def create_payment_intent(
         return CreatePaymentIntentResponse(
             client_secret=intent.client_secret,
             payment_intent_id=intent.id,
-            amount_eur=request_data.amount_eur,
+            amount_eur=amount_cents / 100,
             form_fills_purchased=request_data.form_fills_purchased,
         )
     except stripe.error.CardError as exc:
@@ -201,16 +150,30 @@ def confirm_payment(
                 detail=f"Payment not successful: {intent.status}",
             )
 
-        billing_info = _billing_for_user(db, current_user["id"])
+        metadata = dict(intent.to_dict().get("metadata") or {})
+        if metadata.get("user_id") != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Payment intent belongs to another user")
+
+        billing_info = (
+            db.query(UserBillingInfo)
+            .filter_by(user_id=current_user["id"])
+            .with_for_update()
+            .first()
+        )
+        if not billing_info:
+            raise HTTPException(status_code=404, detail="Billing information not found")
+        if intent.customer != billing_info.stripe_customer_id:
+            raise HTTPException(status_code=403, detail="Payment customer mismatch")
         existing = (
             db.query(StripeTransaction)
             .filter_by(stripe_transaction_id=intent.id)
             .first()
         )
         if existing:
+            if existing.user_id != current_user["id"]:
+                raise HTTPException(status_code=403, detail="Transaction belongs to another user")
             return _transaction_response(existing)
 
-        metadata = intent.to_dict()["metadata"]
         raw_form_fills = metadata["form_fills_purchased"]
         try:
             form_fills = int(raw_form_fills)
@@ -219,10 +182,14 @@ def confirm_payment(
                 f"Invalid form_fills_purchased value in metadata: {raw_form_fills}"
             ) from exc
 
+        expected_amount = (form_fills * 100) // STRIPE_FILLS_PER_EUR
+        if intent.currency.lower() != "eur" or intent.amount != expected_amount:
+            raise HTTPException(status_code=400, detail="Payment amount or currency mismatch")
+
         stripe_transaction = StripeTransaction(
             user_id=current_user["id"],
             stripe_transaction_id=intent.id,
-            amount=intent.amount / 100,
+            amount=Decimal(intent.amount) / Decimal(100),
             currency=intent.currency.upper(),
             form_fills_purchased=form_fills,
             status="succeeded",
@@ -236,7 +203,16 @@ def confirm_payment(
         db.add(stripe_transaction)
         billing_info.total_amount_paid += stripe_transaction.amount
         billing_info.form_fills_remaining += form_fills
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            existing = db.query(StripeTransaction).filter_by(
+                stripe_transaction_id=intent.id
+            ).first()
+            if existing and existing.user_id == current_user["id"]:
+                return _transaction_response(existing)
+            raise
         db.refresh(stripe_transaction)
         return _transaction_response(stripe_transaction)
     except HTTPException:

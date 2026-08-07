@@ -1,0 +1,25 @@
+identity:
+  type: SystemAssigned
+
+configuration:
+  triggerType: Manual
+  replicaTimeout: 600
+  replicaRetryLimit: 1
+  secrets:
+  - name: database-url
+    keyVaultUrl: https://former.vault.azure.net/secrets/database-url
+    identity: system
+
+template:
+  containers:
+  - name: migrate
+    image: former.azurecr.io/former-backend:latest
+    command: ["alembic", "upgrade", "head"]
+    env:
+    - name: APP_ENV
+      value: production
+    - name: DATABASE_URL
+      secretRef: database-url
+    resources:
+      cpu: 0.25
+      memory: 0.5Gi

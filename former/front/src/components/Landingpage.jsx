@@ -28,7 +28,7 @@ const FEATURES = [
 ];
 
 const FAQS = [
-  { q: "Does it work on any form?", a: "Most standard HTML forms — university portals, Google Forms, Typeform, custom enrollment pages. Highly exotic single-page apps may need a heads-up." },
+  { q: "Which forms are supported?", a: "Google Forms and Microsoft Forms URLs are supported. Other destinations are rejected before automation starts." },
   { q: "Will my answers look human?", a: "That's the whole point. The personality system controls vocabulary, tone, verbosity and political framing so every run reads differently." },
   { q: "Can I run the same form multiple times?", a: "Yes. Choose how many fills you need and a pace per hour or per day. Former spreads them out naturally." },
   { q: "Do I need to set up anything?", a: "Just create a free account. former runs on our hosted infrastructure — no local setup, no CLI, no config files." },

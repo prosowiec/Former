@@ -16,7 +16,7 @@
 | `requirements.txt` | Shared Python dependency list |
 | `pyproject.toml` | Python package metadata |
 | `pytest.ini` | Pytest e2e marker declaration |
-| `POSTGRESQL_MIGRATION.md` | PostgreSQL bootstrap and MSSQL migration guide |
+| `POSTGRESQL_MIGRATION.md` | PostgreSQL and Alembic deployment guide |
 
 ## Backend package
 
@@ -114,12 +114,11 @@
 
 | Path | Role |
 | --- | --- |
-| `scripts/migrate_mssql_to_postgresql.py` | One-time application-table data copy |
-| `scripts/merge_env_to_appyaml.py` | Legacy env-to-YAML merge helper; unsafe for secrets |
+| `scripts/dispatch_pending_airflow.py` | Durable Airflow-outbox reconciliation |
 | `former/tests/test_trigger_run.py` | Airflow trigger payload/client tests |
-| `former/tests/test_api.py` | API tests; currently stale against auth/dependency wiring |
-| `former/tests/test_auth.py` | Auth tests; currently imports a removed symbol |
-| `former/tests/test_backend_and_schema.py` | Backend/schema tests; imports a removed module |
+| `former/tests/test_api.py` | API surface and orchestration utility tests |
+| `former/tests/test_auth.py` | HttpOnly-cookie authentication tests |
+| `former/tests/test_backend_and_schema.py` | Backend/schema validation tests |
 | `former/tests/test_e2e_forms.py` | Live form automation tests |
 | `former/tests/TestResponses.py` | LLM/form response fixtures or experiments |
 

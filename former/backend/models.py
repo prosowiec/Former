@@ -1,8 +1,7 @@
 """SQLAlchemy models for authentication."""
 
 from datetime import datetime
-from pydantic import HttpUrl
-from sqlalchemy import Column, Float, Integer, String, DateTime, Boolean, Text, JSON, UniqueConstraint, ForeignKey
+from sqlalchemy import Column, Float, Integer, Numeric, String, DateTime, Boolean, Text, JSON, UniqueConstraint, ForeignKey
 import uuid
 
 from .db import Base
@@ -40,7 +39,7 @@ class UserBillingInfo(Base):
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String(36), ForeignKey("users.id"), nullable=False, unique=True, index=True)
-    total_amount_paid = Column(Float, default=0.0, nullable=False)  # Total amount user has paid
+    total_amount_paid = Column(Numeric(12, 2), default=0, nullable=False)
     form_fills_remaining = Column(Integer, default=10, nullable=False)  # Remaining form fills
     form_fills_used = Column(Integer, default=0, nullable=False)  # Total form fills used
     stripe_customer_id = Column(String(255), nullable=True)  # Stripe customer ID
@@ -60,7 +59,7 @@ class StripeTransaction(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     stripe_transaction_id = Column(String(255), nullable=False, unique=True, index=True)  # Stripe payment intent ID
-    amount = Column(Float, nullable=False)  # Amount paid in this transaction
+    amount = Column(Numeric(12, 2), nullable=False)
     currency = Column(String(3), default="USD", nullable=False)  # Currency code
     form_fills_purchased = Column(Integer, default=0, nullable=False)  # Number of form fills purchased
     status = Column(String(50), nullable=False)  # e.g., 'succeeded', 'pending', 'failed'
@@ -76,6 +75,7 @@ class StripeTransaction(Base):
 class AirflowTriggerInternalRequest(Base):
     __tablename__ = "airflow_trigger_requests"
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     user_email = Column(String(255), nullable=False)
     form_url = Column(String(2048), nullable=False)
     dag_id = Column(String(255), nullable=False)
@@ -89,9 +89,19 @@ class AirflowTriggerInternalRequest(Base):
     risk_tolerance = Column(String(50), nullable=True)
     verbosity = Column(String(50), nullable=True)
     formality = Column(String(50), nullable=True)
-    state = Column(String(50), default="active", nullable=False)  # active, cancelled
+    state = Column(String(50), default="pending_dispatch", nullable=False)
+    quota_reserved = Column(Integer, nullable=False, default=0)
+    quota_settled = Column(Integer, nullable=False, default=0)
+    quota_refunded = Column(Integer, nullable=False, default=0)
+    dispatch_attempts = Column(Integer, nullable=False, default=0)
+    last_dispatch_error = Column(Text, nullable=True)
+    dispatched_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     expected_end_at = Column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("run_id", name="uq_airflow_trigger_run_id"),
+    )
 
 class AirflowProgress(Base):
     """Model to track Airflow DAG run progress."""
@@ -112,11 +122,17 @@ class FormPageAnswersCache(Base):
     id         = Column(Integer, primary_key=True)
     form_url   = Column(String(2048), nullable=False)
     page_index = Column(Integer, nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    question_hash = Column(String(64), nullable=False)
+    personality_hash = Column(String(64), nullable=False)
     questions  = Column(JSON, nullable=False)
     answers    = Column(JSON, nullable=False)
 
     __table_args__ = (
-        UniqueConstraint("form_url", "page_index"),
+        UniqueConstraint(
+            "user_id", "form_url", "page_index", "question_hash", "personality_hash",
+            name="uq_form_answer_cache_identity",
+        ),
     )    
     
 class FormRunAnswers(Base):
@@ -137,3 +153,7 @@ class FormRunAnswers(Base):
     
     def __repr__(self):
         return f"<FormRunAnswers(run_id={self.run_id}, execution_index={self.execution_index}, form_url={self.form_url}, success={self.success})>"
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "execution_index", name="uq_form_run_execution"),
+    )

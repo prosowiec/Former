@@ -1,0 +1,189 @@
+identity:
+  type: SystemAssigned
+
+configuration:
+  ingress:
+    external: true
+    targetPort: 80
+    transport: auto
+  maxInactiveRevisions: 1
+  secrets:
+  - name: openai-api-key
+    keyVaultUrl: https://former.vault.azure.net/secrets/openai-api-key
+    identity: system
+  - name: gemini-api-key
+    keyVaultUrl: https://former.vault.azure.net/secrets/gemini-api-key
+    identity: system
+  - name: database-url
+    keyVaultUrl: https://former.vault.azure.net/secrets/database-url
+    identity: system
+  - name: airflow-db-uri
+    keyVaultUrl: https://former.vault.azure.net/secrets/airflow-db-uri
+    identity: system
+  - name: airflow-database-sql-alchemy-conn
+    keyVaultUrl: https://former.vault.azure.net/secrets/airflow-database-sql-alchemy-conn
+    identity: system
+  - name: airflow-password
+    keyVaultUrl: https://former.vault.azure.net/secrets/airflow-password
+    identity: system
+  - name: secret-key
+    keyVaultUrl: https://former.vault.azure.net/secrets/secret-key
+    identity: system
+  - name: jwt-secret-key
+    keyVaultUrl: https://former.vault.azure.net/secrets/jwt-secret-key
+    identity: system
+  - name: airflow-core-jwt-secret-key
+    keyVaultUrl: https://former.vault.azure.net/secrets/airflow-core-jwt-secret-key
+    identity: system
+  - name: airflow-api-auth-jwt-secret
+    keyVaultUrl: https://former.vault.azure.net/secrets/airflow-api-auth-jwt-secret
+    identity: system
+  - name: google-client-secret
+    keyVaultUrl: https://former.vault.azure.net/secrets/google-client-secret
+    identity: system
+  - name: stripe-secret-key
+    keyVaultUrl: https://former.vault.azure.net/secrets/stripe-secret-key
+    identity: system
+  - name: mail-password
+    keyVaultUrl: https://former.vault.azure.net/secrets/mail-password
+    identity: system
+
+template:
+  scale:
+    minReplicas: 1
+    maxReplicas: 1
+    cooldownPeriod: 60
+    pollingInterval: 30
+    rules:
+    - name: http-scaler
+      http:
+        metadata:
+          concurrentRequests: "10"
+  containers:
+  - image: former.azurecr.io/former-front:latest
+    name: frontend-container
+    resources:
+      cpu: 0.25
+      memory: 0.5Gi
+
+  - image: former.azurecr.io/former-airflow:latest
+    name: airflow-container
+    resources:
+      cpu: 1.0
+      memory: 2Gi
+    env:
+    - name: APP_ENV
+      value: production
+    - name: AIRFLOW__CORE__EXECUTOR
+      value: LocalExecutor
+    - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+      secretRef: airflow-database-sql-alchemy-conn
+    - name: AIRFLOW__CORE__EXECUTION_API_SERVER_URL
+      value: http://localhost:8080/execution/
+    - name: AIRFLOW__CORE__AUTH_MANAGER
+      value: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+    - name: AIRFLOW__CORE__LOAD_EXAMPLES
+      value: "false"
+    - name: AIRFLOW__LOGGING__BASE_LOG_FOLDER
+      value: /opt/airflow/logs
+    - name: AIRFLOW__CORE__JWT_SECRET_KEY
+      secretRef: airflow-core-jwt-secret-key
+    - name: AIRFLOW__API_AUTH__JWT_SECRET
+      secretRef: airflow-api-auth-jwt-secret
+    - name: DATABASE_URL
+      secretRef: database-url
+    - name: OPENAI_API_KEY
+      secretRef: openai-api-key
+    - name: GEMINI_API_KEY
+      secretRef: gemini-api-key
+    - name: TZ
+      value: UTC
+
+  - image: former.azurecr.io/former-backend:latest
+    name: backend-container
+    resources:
+      cpu: 0.25
+      memory: 0.5Gi
+    env:
+    - name: APP_ENV
+      value: production
+    - name: OPENAI_API_KEY
+      secretRef: openai-api-key
+    - name: GEMINI_API_KEY
+      secretRef: gemini-api-key
+    - name: DATABASE_URL
+      secretRef: database-url
+    - name: AIRFLOW_DB_URI
+      secretRef: airflow-db-uri
+    - name: AIRFLOW_HOST
+      value: http://localhost:8080
+    - name: AIRFLOW_BASE_URL
+      value: http://localhost:8080/api/v2
+    - name: AIRFLOW_USERNAME
+      value: admin
+    - name: AIRFLOW_PASSWORD
+      secretRef: airflow-password
+    - name: AIRFLOW_DAG_ID
+      value: form_filler_plan
+    - name: GOOGLE_CLIENT_ID
+      value: 932543813980-lb0pa2u7ikjqgtkhntgecdtvifeh2scq.apps.googleusercontent.com
+    - name: GOOGLE_CLIENT_SECRET
+      secretRef: google-client-secret
+    - name: GOOGLE_OAUTH_REDIRECT_URI
+      value: https://former.com.pl/auth/callback
+    - name: FRONTEND_URL
+      value: https://former.com.pl
+    - name: SECRET_KEY
+      secretRef: secret-key
+    - name: JWT_SECRET_KEY
+      secretRef: jwt-secret-key
+    - name: ACCESS_TOKEN_EXPIRE_MINUTES
+      value: "15"
+    - name: REFRESH_TOKEN_EXPIRE_DAYS
+      value: "30"
+    - name: SQLALCHEMY_ECHO
+      value: "false"
+    - name: STRIPE_PUBLISHABLE_KEY
+      value: pk_test_51TaMnGRr0LOlo8a1eBh7QC88mZr6trk2iO9cjZqJ2yUkfu8Pa5D1hpaxBjUc80XKxKQoZR9CEHGx8VAIBt99qfZN00GkFsDFkh
+    - name: STRIPE_SECRET_KEY
+      secretRef: stripe-secret-key
+    - name: MAIL_USERNAME
+      value: no-reply@former.com.pl
+    - name: MAIL_PASSWORD
+      secretRef: mail-password
+    - name: MAIL_FROM
+      value: no-reply@former.com.pl
+    - name: MAIL_FROM_NAME
+      value: Former App
+    - name: MAIL_SERVER
+      value: serwer2659421.hosting-home.pl
+    - name: MAIL_PORT
+      value: "587"
+    - name: MAIL_TLS
+      value: "true"
+    - name: MAIL_SSL
+      value: "false"
+    - name: EMAIL_VERIFY_URL
+      value: https://former.com.pl/verify-email
+    - name: PASSWORD_RESET_URL
+      value: https://former.com.pl/reset-password
+
+  - image: former.azurecr.io/former-backend:latest
+    name: airflow-outbox-dispatcher
+    command: ["python", "-m", "scripts.dispatch_pending_airflow", "--loop"]
+    resources:
+      cpu: 0.25
+      memory: 0.5Gi
+    env:
+    - name: APP_ENV
+      value: production
+    - name: DATABASE_URL
+      secretRef: database-url
+    - name: AIRFLOW_HOST
+      value: http://localhost:8080
+    - name: AIRFLOW_BASE_URL
+      value: http://localhost:8080/api/v2
+    - name: AIRFLOW_USERNAME
+      value: admin
+    - name: AIRFLOW_PASSWORD
+      secretRef: airflow-password

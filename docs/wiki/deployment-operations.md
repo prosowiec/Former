@@ -119,9 +119,7 @@ password file. Local Compose overrides the image command for each Airflow role.
 ## Database migration and backup
 
 - Airflow schema: `airflow db migrate` through `airflow-init`.
-- Application schema: SQLAlchemy `create_all()` at backend startup.
-- Legacy MSSQL data: `scripts/migrate_mssql_to_postgresql.py`; the target
-  application tables must be empty.
+- Application schema: `app-migrate-job.yaml` runs `alembic upgrade head` before release.
 
 Back up the host PostgreSQL database as one unit because it contains both
 Airflow metadata and application state. Restore testing should verify DAG run

@@ -22,7 +22,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-to-a-secret")
+INSECURE_DEFAULT_SECRET = "development-only-change-me-secret"
+SECRET_KEY = os.getenv("SECRET_KEY", INSECURE_DEFAULT_SECRET)
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", SECRET_KEY)
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1))
@@ -40,14 +41,38 @@ if APP_ENV not in {"local", "production", "test"}:
     )
 
 IS_LOCAL = APP_ENV == "local"
+IS_PRODUCTION = APP_ENV == "production"
 FRONTEND_URL = os.getenv(
     "FRONTEND_URL",
     "http://localhost" if IS_LOCAL else "https://former.com.pl",
 )
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", str(IS_PRODUCTION)).lower() == "true"
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax").strip().lower()
+if COOKIE_SAMESITE not in {"lax", "strict", "none"}:
+    raise RuntimeError("COOKIE_SAMESITE must be one of: lax, strict, none")
+TRUSTED_HOSTS = [
+    host.strip()
+    for host in os.getenv(
+        "TRUSTED_HOSTS",
+        "former.com.pl,www.former.com.pl,localhost,127.0.0.1" if IS_PRODUCTION else "*",
+    ).split(",")
+    if host.strip()
+]
+FORM_ALLOWED_HOSTS = frozenset(
+    host.strip().lower().rstrip(".")
+    for host in os.getenv(
+        "FORM_ALLOWED_HOSTS",
+        "docs.google.com,forms.gle,forms.office.com,forms.microsoft.com,forms.cloud.microsoft",
+    ).split(",")
+    if host.strip()
+)
+if COOKIE_SAMESITE == "none" and not COOKIE_SECURE:
+    raise RuntimeError("COOKIE_SECURE must be true when COOKIE_SAMESITE=none")
 
 # Stripe Configuration
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
+STRIPE_FILLS_PER_EUR = int(os.getenv("STRIPE_FILLS_PER_EUR", "10"))
 
 AUTH_USERS_FILE = os.getenv("AUTH_USERS_FILE", os.path.join(os.path.dirname(__file__), "auth_users.json"))
 
@@ -96,3 +121,22 @@ MAIL_SSL = os.getenv("MAIL_SSL", "false").lower() == "true"
 # Email verification and password reset URLs (for links sent in emails)
 EMAIL_VERIFY_URL = os.getenv("EMAIL_VERIFY_URL", f"{FRONTEND_URL}/verify-email")
 PASSWORD_RESET_URL = os.getenv("PASSWORD_RESET_URL", f"{FRONTEND_URL}/reset-password")
+
+def validate_production_security() -> None:
+    if not IS_PRODUCTION:
+        return
+    insecure_settings = []
+    if SECRET_KEY == INSECURE_DEFAULT_SECRET:
+        insecure_settings.append("SECRET_KEY")
+    if JWT_SECRET_KEY in {INSECURE_DEFAULT_SECRET, SECRET_KEY}:
+        insecure_settings.append("JWT_SECRET_KEY (must be independent)")
+    if AIRFLOW_PASSWORD == "admin":
+        insecure_settings.append("AIRFLOW_PASSWORD")
+    if "DATABASE_URL" not in os.environ:
+        insecure_settings.append("DATABASE_URL")
+    if not COOKIE_SECURE:
+        insecure_settings.append("COOKIE_SECURE")
+    if insecure_settings:
+        raise RuntimeError(
+            "Unsafe production configuration: " + ", ".join(insecure_settings)
+        )

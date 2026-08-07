@@ -5,7 +5,7 @@
 1. React posts name, surname, email, and password to `POST /auth/register`.
 2. The backend hashes the password with Argon2 and inserts `users`.
 3. A `user_billing_info` row is created with an initial fill allowance.
-4. The backend returns JWT access and refresh tokens.
+4. The backend sets JWT access and refresh values as HttpOnly cookies.
 5. The frontend may request `POST /auth/verify-email/send`.
 6. The backend stores a random verification token and expiry, then sends an
    SMTP email containing `EMAIL_VERIFY_URL?token=...`.
@@ -14,12 +14,12 @@
 
 ## Password or Google login
 
-Password login verifies an Argon2 hash and returns an access/refresh pair.
+Password login verifies an Argon2 hash and sets an access/refresh cookie pair.
 Google login stores an OAuth state in the signed Starlette session, exchanges
 the callback code with Google, creates or updates the user, and redirects to
 the frontend with short-lived HTTP-only token cookies. The OAuth success page
-exchanges those cookies through `GET /auth/tokens`; the API client then keeps
-tokens in browser session storage and navigates directly to `/home`. The
+keeps those cookies HttpOnly; the API client sends credentialed requests and
+navigates directly to `/home`. The
 private-route guard waits for `/auth/me` before rendering or redirecting.
 
 ## Form-run trigger
@@ -33,7 +33,7 @@ sequenceDiagram
     participant AF as Airflow API
 
     User->>UI: URL, run count, hourly/daily pace, personality
-    UI->>API: POST /airflow/trigger + access token
+    UI->>API: POST /airflow/trigger + session cookies
     API->>DB: Validate user and verified email
     API->>AF: POST form_filler_plan DAG run
     AF-->>API: Accepted DAG run

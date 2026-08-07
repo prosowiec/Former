@@ -77,10 +77,10 @@ def create_user(email: str, password: str, name: str, surname: str, db: Session)
         )
 
         db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-        
-        # Create billing info with default 10 form fills
+        db.flush()
+
+        # Commit the user and billing row atomically so registration cannot
+        # leave an account without quota state.
         billing_info = UserBillingInfo(
             user_id=new_user.id,
             total_amount_paid=0.0,
@@ -89,6 +89,7 @@ def create_user(email: str, password: str, name: str, surname: str, db: Session)
         )
         db.add(billing_info)
         db.commit()
+        db.refresh(new_user)
                 
         return {
             "id": str(new_user.id),

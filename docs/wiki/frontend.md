@@ -14,7 +14,7 @@ serves it from Nginx on port 80.
 | `/landing` | Public-only | Marketing/FAQ page |
 | `/login` | Public-only | Password, registration, Google, forgot password |
 | `/register` | Public-only | Registration mode of login page |
-| `/oauth-success` | Public | Exchanges OAuth cookies for tokens |
+| `/oauth-success` | Public | Compatibility redirect to `/home` |
 | `/verify-email` | Public | Consumes verification token from query string |
 | `/reset-password` | Public | Consumes reset token and new password |
 | `/home` | Authenticated and verified | Dashboard |
@@ -26,15 +26,13 @@ when the user exists but has not verified email.
 
 `src/api/client.js` centralizes requests. It:
 
-- reads `VITE_API_BASE_URL`, defaulting to `http://localhost:8000`;
-- attaches an access bearer token;
-- refreshes proactively within 60 seconds of expiry;
+- reads `VITE_API_BASE_URL`, defaulting to same-origin requests;
+- sends server-managed cookies with requests;
 - retries once after a 401;
 - normalizes FastAPI validation errors;
 - exposes grouped auth, billing, and Airflow methods.
 
-The module stores tokens in `sessionStorage`. `useAuth` still attempts to read
-`localStorage` on mount, an inconsistency recorded in the roadmap.
+JavaScript never receives or persists access or refresh tokens.
 
 ## State hooks
 

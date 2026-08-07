@@ -38,7 +38,6 @@ export default function Dashboard() {
 
     api.confirmPayment({
       payment_intent_id: paymentIntentId,
-      stripe_transaction_id: paymentIntentId,
     })
       .then(() => {
         refetchBilling();

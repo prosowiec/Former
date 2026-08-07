@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { api, setTokens, clearTokens, getAccessToken } from "../api/client";
+import { api } from "../api/client";
 
 export function useAuth() {
   const [user, setUser] = useState(undefined); // undefined = loading
@@ -15,13 +15,6 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    // Keep restoration consistent with api/client.js, which uses sessionStorage.
-    const accessToken = sessionStorage.getItem("access_token");
-    const refreshToken = sessionStorage.getItem("refresh_token");
-    if (accessToken && refreshToken) {
-      setTokens(accessToken, refreshToken);
-    }
-
     fetchMe();
 
     // If we're returning from Google OAuth, strip the query param then recheck

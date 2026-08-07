@@ -6,8 +6,8 @@ x-airflow-env: &airflow-env
   AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-api-server:8080/execution/"
   AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
   AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
-  AIRFLOW__CORE__JWT_SECRET_KEY: "9f8c1b7d9a2e4f6c8b0a1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-  AIRFLOW__API_AUTH__JWT_SECRET: "9f8c1b7d9a2e4f6c8b0a1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+  AIRFLOW__CORE__JWT_SECRET_KEY: ${AIRFLOW_CORE_JWT_SECRET_KEY:?Set AIRFLOW_CORE_JWT_SECRET_KEY in .env}
+  AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_API_AUTH_JWT_SECRET:?Set AIRFLOW_API_AUTH_JWT_SECRET in .env}
   TZ: UTC
   AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE: UTC
   AIRFLOW__CORE__DEFAULT_TIMEZONE: utc
@@ -39,7 +39,7 @@ services:
       - ./simple_auth_manager_passwords.json.generated:/opt/airflow/simple_auth_manager_passwords.json.generated
     environment:
       <<: *airflow-env
-      AIRFLOW__API__SECRET_KEY: "another_long_secret_for_ui_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      AIRFLOW__API__SECRET_KEY: ${AIRFLOW_API_SECRET_KEY:?Set AIRFLOW_API_SECRET_KEY in .env}
     command: ["airflow", "api-server"]
     env_file:
       - .env
@@ -103,6 +103,23 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in the local .env file}
+    depends_on:
+      airflow-api-server:
+        condition: service_started
+    env_file:
+      - .env
+  airflow-outbox-dispatcher:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: ["python", "-m", "scripts.dispatch_pending_airflow", "--loop"]
+    environment:
+      APP_ENV: local
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in the local .env file}
+      AIRFLOW_HOST: "http://airflow-api-server:8080"
+      AIRFLOW_BASE_URL: "http://airflow-api-server:8080/api/v2"
+      AIRFLOW_USERNAME: ${AIRFLOW_USERNAME:-admin}
+      AIRFLOW_PASSWORD: ${AIRFLOW_PASSWORD:?Set AIRFLOW_PASSWORD in .env}
     depends_on:
       airflow-api-server:
         condition: service_started

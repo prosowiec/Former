@@ -125,19 +125,16 @@ cancellation. All other orchestration calls use the Airflow REST API.
 ## Schema lifecycle
 
 - `airflow-init` runs `airflow db migrate` at Compose startup.
-- FastAPI startup calls `Base.metadata.create_all()` for application tables.
-- There is no application Alembic revision history despite Alembic being a
-  dependency; `create_all()` cannot evolve existing columns safely.
-- `scripts/migrate_mssql_to_postgresql.py` performs a one-time, ordered copy
-  from MSSQL into an empty PostgreSQL target.
+- Application schema changes are versioned with Alembic and run before release;
+  FastAPI startup does not mutate the schema.
 
 ## Ownership and transactional notes
 
 - User creation commits the user before creating billing info, so a billing
   failure can leave a user without billing state.
-- Triggering Airflow happens before inserting the application trigger record;
-  a later database failure can leave an untracked Airflow run.
+- Trigger requests and quota reservations commit before idempotent Airflow
+  dispatch; a reconciler retries pending or failed outbox records.
 - Payment confirmation records the transaction and credits quota in one
   database commit.
-- Child status and billing are separate Airflow tasks and separate database
-  transactions.
+- Each terminal child records status and settles/refunds one reservation in one
+  locked, idempotent transaction.

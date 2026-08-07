@@ -14,7 +14,9 @@ selection belongs to the deployment layer, not to Python code.
 
 Start locally with:
 
-```sh
+```powershell
+Copy-Item .env.example .env  # only when .env does not exist yet
+.\scripts\init_local_secrets.ps1
 docker compose up --build
 ```
 
@@ -28,17 +30,10 @@ docker compose up --build
 
 ### Azure Key Vault
 
-`azure-key-vault-secrets.example.json` documents the production secret names.
-The real `azure-key-vault-secrets.production.json` is ignored by Git. Upload it
-with Azure CLI after authenticating:
-
-```powershell
-.\scripts\upload_key_vault_secrets.ps1 -VaultName <your-key-vault-name>
-```
-
-The script also generates ignored `app.azure.generated.yaml` with resolved Key
-Vault URLs. `app.yaml` contains only `secretRef` mappings and non-secret
-configuration; the obsolete production PostgreSQL sidecar is not included.
+`azure-key-vault-secrets.example.json` documents production secret names only.
+Write rotated values directly to Key Vault from an approved operator session;
+do not create a plaintext production JSON file. `app.yaml` contains only Key
+Vault/`secretRef` mappings and non-secret configuration.
 
 Key Vault names use hyphens because Azure Key Vault does not allow underscores.
 Map container environment variables such as `DATABASE_URL` to the corresponding
@@ -48,3 +43,6 @@ Key Vault secret such as `database-url`. Production database URLs include
 The canonical variables are `DATABASE_URL`, `AIRFLOW_DB_URI`, `AIRFLOW_HOST`,
 `AIRFLOW_BASE_URL`, `FRONTEND_URL`, and the corresponding credential/secret
 variables listed in the templates.
+
+Run `app-migrate-job.yaml` before deploying a new application revision.
+Production database URLs must point to durable managed PostgreSQL.
