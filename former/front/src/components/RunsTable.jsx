@@ -1,7 +1,7 @@
 import { useState } from "react";
 import RunStageIndicator from "./RunStageIndicator";
 import { api } from "../api/client";
-import { formatBrowserDateTime, formatExpectedFillEnd, formatFillRate } from "../hooks/runsUtils";
+import { formatFillRate } from "../hooks/runsUtils";
 
 const STATE_COLORS = {
   queued:    "var(--yellow)",
@@ -35,10 +35,30 @@ function truncate(url, max = 44) {
 
 function formatDate(iso) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit",
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("en-GB", {
+    day: "numeric", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: false,
   });
+}
+
+function expectedEnd(run) {
+  if (run.expected_end_at) return formatDate(run.expected_end_at);
+  const start = new Date(run.created_at ?? run.logical_date);
+  const fills = Math.max(1, Number(run.num_executions) || 1);
+  const interval = Number(run.base_interval_minutes);
+  if (Number.isNaN(start.getTime()) || !Number.isFinite(interval)) return "—";
+  return formatDate(new Date(start.getTime() + fills * interval * 60_000));
+}
+
+function fillProgress(run) {
+  const total = Math.max(0, Number(run.num_executions) || 0);
+  const completed = Math.min(
+    total,
+    Math.max(0, Number(run.progress?.numberOfSuccessfulRuns ?? (run.state === "success" ? total : 0)) || 0),
+  );
+  return { total, completed, percentage: total ? Math.round((completed / total) * 100) : 0 };
 }
 
 function humanize(val) {
@@ -102,25 +122,11 @@ function CancelModal({ run, onClose, onConfirmed }) {
   );
 }
 
-// ── Execution count badge ─────────────────────────────────────
-function ExecBadge({ run }) {
-  const total     = run.num_executions ?? 1;
-  const completed = run.progress?.numberOfSuccessfulRuns ?? (run.state === "success" ? total : 0);
-  if (total <= 1) return null;
-  return (
-    <span className="exec-badge" title={`${completed} of ${total} executions done`}>
-      {completed}/{total}
-    </span>
-  );
-}
-
 // ── Run detail modal ─────────────────────────────────────────
 function RunModal({ run, onClose, onCancelRequest }) {
   const personalityAxes = ["age_profile", "political_leaning", "risk_tolerance", "verbosity", "formality"];
   const hasPersonality  = personalityAxes.some((k) => run[k]);
-  const total           = run.num_executions ?? 0;
-  const completed       = run.progress?.numberOfSuccessfulRuns ?? (run.state === "success" ? total : 0);
-  const pct             = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const { total, completed, percentage: pct } = fillProgress(run);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -170,6 +176,10 @@ function RunModal({ run, onClose, onCancelRequest }) {
                 <dt>Started</dt>
                 <dd>{formatDate(run.created_at)}</dd>
               </div>
+              <div className="modal__dl-row">
+                <dt>Expected end</dt>
+                <dd>{expectedEnd(run)}</dd>
+              </div>
             </dl>
           </div>
 
@@ -187,18 +197,11 @@ function RunModal({ run, onClose, onCancelRequest }) {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <div className="modal__exec-schedule">
-                  {total > 1 && <span>{formatFillRate(run.base_interval_minutes)}</span>}
-                  <span>
-                    Expected fill end: {run.expected_end_at
-                      ? formatBrowserDateTime(run.expected_end_at)
-                      : formatExpectedFillEnd(
-                          run.created_at,
-                          total,
-                          run.base_interval_minutes,
-                        )}
-                  </span>
-                </div>
+                {total > 1 && (
+                  <div className="modal__exec-schedule">
+                    <span>{formatFillRate(run.base_interval_minutes)}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -258,12 +261,15 @@ export default function RunsTable({ runs, loading, onRunCancelled }) {
         <div className="runs-table__header">
           <span>Run</span>
           <span>Status</span>
+          <span>Fills</span>
           <span>Started</span>
+          <span>Expected end</span>
           <span />
         </div>
 
         {runs.map((run) => {
           const cancellable = CANCELLABLE.has(run.state);
+          const progress = fillProgress(run);
           return (
             <button
               key={run.dag_run_id ?? run.id}
@@ -273,7 +279,6 @@ export default function RunsTable({ runs, loading, onRunCancelled }) {
               <div className="runs-table__name-cell">
                 <div className="runs-table__name-row">
                   <span className="runs-table__name">{run.run_name || "—"}</span>
-                  <ExecBadge run={run} />
                 </div>
                 <span className="runs-table__url mono" title={run.form_url}>
                   {truncate(run.form_url)}
@@ -284,8 +289,16 @@ export default function RunsTable({ runs, loading, onRunCancelled }) {
                 {run.state}
               </span>
 
+              <span className="runs-table__fills">
+                {progress.completed} / {progress.total} ({progress.percentage}%)
+              </span>
+
               <span className="runs-table__date">
                 {formatDate(run.created_at ?? run.logical_date)}
+              </span>
+
+              <span className="runs-table__date">
+                {expectedEnd(run)}
               </span>
 
               <span className="runs-table__actions" onClick={(e) => e.stopPropagation()}>

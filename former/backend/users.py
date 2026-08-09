@@ -39,7 +39,10 @@ def get_user(email: str, db: Session) -> Optional[Dict]:
             "name": user.name,
             "surname": user.surname,
             "username": user.username,
-            "email_verified": user.email_verified
+            "email_verified": user.email_verified,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "has_password": bool(user.password_hash),
+            "has_google_login": bool(user.google_id),
         }
     return None
 
@@ -77,10 +80,10 @@ def create_user(email: str, password: str, name: str, surname: str, db: Session)
         )
 
         db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-        
-        # Create billing info with default 10 form fills
+        db.flush()
+
+        # Commit the user and billing row atomically so registration cannot
+        # leave an account without quota state.
         billing_info = UserBillingInfo(
             user_id=new_user.id,
             total_amount_paid=0.0,
@@ -89,6 +92,7 @@ def create_user(email: str, password: str, name: str, surname: str, db: Session)
         )
         db.add(billing_info)
         db.commit()
+        db.refresh(new_user)
                 
         return {
             "id": str(new_user.id),
@@ -230,6 +234,30 @@ def change_password(email: str, old_password: str, new_password: str, db: Sessio
     db.commit()
     
     return {"message": "Password changed successfully"}
+
+
+def change_email(email: str, new_email: str, password: str, db: Session) -> Dict:
+    """Change a password user's email and require verification of the new address."""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not user.password_hash:
+        raise HTTPException(status_code=400, detail="Email changes require password sign-in")
+    if not verify_password(password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid current password")
+
+    normalized = new_email.strip().lower()
+    if normalized == user.email.lower():
+        raise HTTPException(status_code=400, detail="New email must be different")
+    if db.query(User).filter(User.email == normalized).first():
+        raise HTTPException(status_code=409, detail="Email address is already in use")
+
+    user.email = normalized
+    user.email_verified = False
+    user.updated_at = datetime.utcnow()
+    db.commit()
+    send_email_verification(normalized, db)
+    return {"message": "Email changed. Verify the new address before signing in again."}
 
 
 def request_password_reset(email: str, db: Session) -> Dict:

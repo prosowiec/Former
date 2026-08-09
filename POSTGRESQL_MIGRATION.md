@@ -1,40 +1,29 @@
-# PostgreSQL migration
+# PostgreSQL and application migrations
 
-Airflow metadata and Former application tables now share the PostgreSQL
-database running on the local machine. Docker Compose reaches it through
-`host.docker.internal`; it does not create another PostgreSQL container.
+Former application tables and Airflow metadata may share a PostgreSQL service,
+but production must use managed PostgreSQL (or equivalent persistent storage)
+with automated backups, point-in-time recovery, and tested restores. PostgreSQL
+must not run as an application sidecar or on container-local storage.
 
-## Start with an empty database
+## Schema deployment
 
-Create the `former` database and user in your local PostgreSQL installation.
-Copy `.env.example` to `.env`, replace `change-me`, then run. The `.env` file
-is exclusively for local development; production uses the canonical variable
-contract in `.env.production.example` and deployment-managed secrets.
+Schema changes are managed by Alembic and never by web-process startup.
+Former records its revision in `former_alembic_version`, leaving Airflow's
+separate `alembic_version` table untouched when both use the same database.
+
+- Fresh database: `alembic upgrade head`.
+- Existing database created by the former `create_all()` startup: back it up,
+  run `alembic stamp 20260807_0001`, then `alembic upgrade head`.
+- Production: execute `app-migrate-job.yaml` as a dedicated release step before
+  updating the application revision.
+
+## Local development
+
+Create the PostgreSQL database and user, copy `.env.example` to `.env`, replace
+the placeholder credentials, run `alembic upgrade head`, then start Compose.
 
 ```sh
+alembic upgrade head
+pwsh -File scripts/init_local_secrets.ps1
 docker compose up --build
 ```
-
-Airflow creates its metadata tables during `airflow-init`. The backend creates
-the Former application tables during startup. PostgreSQL must accept TCP
-connections from Docker Desktop on the configured port (5432 by default).
-
-## Copy existing MSSQL application data
-
-Stop application writes before starting the copy. The target Former tables must
-be empty. Airflow metadata tables may already exist in the target database.
-
-The one-time migration environment needs `pyodbc`, an installed SQL Server ODBC
-driver, SQLAlchemy, and the PostgreSQL driver. Runtime containers do not need
-ODBC.
-
-```sh
-pip install pyodbc
-set SOURCE_DATABASE_URL=mssql+pyodbc://...
-set DATABASE_URL=postgresql+psycopg2://former:password@localhost:5432/former
-python scripts/migrate_mssql_to_postgresql.py
-```
-
-Use `$env:NAME = "value"` instead of `set` in PowerShell. The script creates
-missing application tables, rejects a non-empty target, copies data in foreign
-key order, and updates the PostgreSQL integer sequence.

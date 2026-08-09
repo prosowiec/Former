@@ -1,6 +1,5 @@
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 from ..config import DATABASE_URL, SQLALCHEMY_ECHO
 
@@ -26,25 +25,3 @@ def get_db() -> Session:
         yield db
     finally:
         db.close()
-
-
-def init_db():
-    from former.backend import models
-    Base.metadata.create_all(bind=engine)
-    if engine.dialect.name == "postgresql":
-        with engine.begin() as connection:
-            connection.execute(text("""
-                ALTER TABLE airflow_trigger_requests
-                ADD COLUMN IF NOT EXISTS expected_end_at TIMESTAMP WITH TIME ZONE
-            """))
-            connection.execute(text("""
-                UPDATE airflow_trigger_requests
-                SET expected_end_at =
-                    (created_at AT TIME ZONE 'UTC')
-                    + ((num_executions * base_interval_minutes) * INTERVAL '1 minute')
-                WHERE expected_end_at IS NULL
-            """))
-            connection.execute(text("""
-                ALTER TABLE airflow_trigger_requests
-                ALTER COLUMN expected_end_at SET NOT NULL
-            """))

@@ -1,8 +1,8 @@
 from typing import Dict, Optional
 
-from pydantic import BaseModel, Field, HttpUrl, constr
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 
-from ..config import DEFAULT_DAG_ID
+from ..config import DEFAULT_DAG_ID, FORM_ALLOWED_HOSTS
 
 
 class AirflowTriggerRequest(BaseModel):
@@ -10,13 +10,30 @@ class AirflowTriggerRequest(BaseModel):
     run_name : str = None
     dag_id: Optional[str] = DEFAULT_DAG_ID
     run_id: Optional[str] = None
-    num_executions: int = Field(1, ge=1)
+    num_executions: int = Field(1, ge=1, le=250)
     base_interval_minutes: float = Field(
         10.0,
         ge=5.0,
         description="Interval between fills; minimum five minutes (maximum 12 fills per hour).",
     )
     conf_personality: Optional[Dict[str, str]] = None
+
+    @field_validator("form_url")
+    @classmethod
+    def validate_supported_form_host(cls, value: HttpUrl) -> HttpUrl:
+        host = (value.host or "").lower().rstrip(".")
+        if (
+            value.scheme != "https"
+            or host not in FORM_ALLOWED_HOSTS
+            or value.username is not None
+            or value.password is not None
+            or value.port not in (None, 443)
+        ):
+            supported = ", ".join(sorted(FORM_ALLOWED_HOSTS))
+            raise ValueError(
+                f"Unsupported form destination. Supported hosts: {supported}"
+            )
+        return value
 
 class AirflowTriggerResponse(BaseModel):
     dag_id: str
@@ -41,22 +58,11 @@ class AuthRegisterRequest(BaseModel):
     surname: str
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str
-
-
 class UserResponse(BaseModel):
     email: str
     name: Optional[str] = None
     surname: Optional[str] = None
     email_verified: bool
-
-
-class AuthLoginResponse(BaseModel):
-    user: UserResponse
-    tokens: TokenResponse
 
 
 class AirflowRunResponse(BaseModel):
@@ -76,10 +82,6 @@ class AirflowRunResponse(BaseModel):
     risk_tolerance: Optional[str] = None
     verbosity: Optional[str] = None
     formality: Optional[str] = None
-
-
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str
 
 
 class UserBillingInfoResponse(BaseModel):
@@ -106,22 +108,7 @@ class StripeTransactionResponse(BaseModel):
     created_at: str
 
 
-class StripeTransactionRequest(BaseModel):
-    stripe_transaction_id: str
-    amount: float
-    currency: str = "USD"
-    form_fills_purchased: int
-    status: str
-    description: Optional[str] = None
-    stripe_metadata: Optional[Dict] = None
-
-
-class UpdateFormFillsRequest(BaseModel):
-    form_fills_to_deduct: int = Field(1, ge=1)
-
-
 class CreatePaymentIntentRequest(BaseModel):
-    amount_eur: float = Field(gt=0)  # Amount in EUR
     form_fills_purchased: int = Field(gt=0)
 
 
@@ -134,7 +121,6 @@ class CreatePaymentIntentResponse(BaseModel):
 
 class ConfirmPaymentRequest(BaseModel):
     payment_intent_id: str
-    stripe_transaction_id: str  # Optional payment method id or charge id
 
 
 class VerifyEmailRequest(BaseModel):
@@ -148,6 +134,20 @@ class ResendVerificationEmailRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     old_password: str = Field(min_length=8, max_length=256)
     new_password: str = Field(min_length=8, max_length=256)
+
+
+class ChangeEmailRequest(BaseModel):
+    new_email: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=8, max_length=256)
+
+    @field_validator("new_email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        local, separator, domain = normalized.partition("@")
+        if not separator or not local or "." not in domain or domain.startswith(".") or domain.endswith("."):
+            raise ValueError("Enter a valid email address")
+        return normalized
 
 
 class PasswordResetRequest(BaseModel):

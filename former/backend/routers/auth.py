@@ -1,9 +1,10 @@
 """Authentication, OAuth, verification, and password endpoints."""
 
+import logging
 import secrets
 from typing import Annotated, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -17,21 +18,20 @@ from ..db import get_db
 from ..dependencies import get_current_user, get_verified_user
 from ..schemas import (
     AuthLoginRequest,
-    AuthLoginResponse,
     AuthRegisterRequest,
+    ChangeEmailRequest,
     ChangePasswordRequest,
     EmailVerificationResponse,
     MessageResponse,
     PasswordResetConfirmRequest,
     PasswordResetRequest,
-    RefreshTokenRequest,
     ResendVerificationEmailRequest,
-    TokenResponse,
     UserResponse,
     VerifyEmailRequest,
 )
 from ..users import (
     authenticate_user,
+    change_email,
     change_password,
     create_user,
     get_or_create_oauth_user,
@@ -41,40 +41,63 @@ from ..users import (
     send_email_verification,
     verify_email,
 )
-from ...config import FRONTEND_URL
+from ...config import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    COOKIE_SAMESITE,
+    COOKIE_SECURE,
+    FRONTEND_URL,
+    REFRESH_TOKEN_EXPIRE_DAYS,
+)
 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
+logger = logging.getLogger(__name__)
+
+ACCESS_COOKIE_MAX_AGE = 60 * ACCESS_TOKEN_EXPIRE_MINUTES
+REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * REFRESH_TOKEN_EXPIRE_DAYS
 
 
-@router.post("/login", response_model=AuthLoginResponse)
-def auth_login(credentials: AuthLoginRequest, db: Session = Depends(get_db)):
+def _set_auth_cookies(response: Response, tokens: dict) -> None:
+    common = {
+        "httponly": True,
+        "secure": COOKIE_SECURE,
+        "samesite": COOKIE_SAMESITE,
+        "path": "/",
+    }
+    response.set_cookie(
+        "access_token", tokens["access_token"], max_age=ACCESS_COOKIE_MAX_AGE, **common
+    )
+    response.set_cookie(
+        "refresh_token", tokens["refresh_token"], max_age=REFRESH_COOKIE_MAX_AGE, **common
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+
+
+@router.post("/login", response_model=UserResponse)
+def auth_login(
+    credentials: AuthLoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     user = authenticate_user(credentials.email, credentials.password, db)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     tokens = create_token_pair(user["email"], user.get("name"), user.get("surname"))
-    return AuthLoginResponse(user=UserResponse(**user), tokens=TokenResponse(**tokens))
+    _set_auth_cookies(response, tokens)
+    return UserResponse(**user)
 
 
-@router.get("/tokens")
-def auth_tokens(request: Request):
-    """Exchange HTTP-only OAuth cookies for frontend-managed tokens."""
-    access_token = request.cookies.get("access_token")
-    refresh_token = request.cookies.get("refresh_token")
-    if not access_token or not refresh_token:
-        raise HTTPException(status_code=401, detail="No tokens found")
-
-    response = JSONResponse(
-        {"access_token": access_token, "refresh_token": refresh_token}
-    )
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
-    return response
-
-
-@router.post("/register", response_model=AuthLoginResponse)
-def auth_register(credentials: AuthRegisterRequest, db: Session = Depends(get_db)):
+@router.post("/register", response_model=UserResponse)
+def auth_register(
+    credentials: AuthRegisterRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     if get_user(credentials.email, db):
         raise HTTPException(status_code=400, detail="User already exists")
 
@@ -85,8 +108,15 @@ def auth_register(credentials: AuthRegisterRequest, db: Session = Depends(get_db
         credentials.surname,
         db=db,
     )
+    try:
+        send_email_verification(user["email"], db)
+    except Exception:
+        # Registration is durable at this point. A user can retry delivery via
+        # /auth/verify-email/send if the mail provider is temporarily down.
+        logger.exception("Failed to send registration verification email")
     tokens = create_token_pair(user["email"], user.get("name"), user.get("surname"))
-    return AuthLoginResponse(user=UserResponse(**user), tokens=TokenResponse(**tokens))
+    _set_auth_cookies(response, tokens)
+    return UserResponse(**user)
 
 
 @router.get("/google")
@@ -117,37 +147,33 @@ def auth_callback(request: Request, db: Session = Depends(get_db)):
     )
     tokens = create_token_pair(user["email"], user.get("name"), user.get("surname"))
 
-    response = RedirectResponse(url=f"{FRONTEND_URL}/oauth-success")
-    response.set_cookie(
-        key="access_token",
-        value=tokens["access_token"],
-        httponly=True,
-        secure=False,
-        samesite="lax",
-    )
-    response.set_cookie(
-        key="refresh_token",
-        value=tokens["refresh_token"],
-        httponly=True,
-        secure=False,
-        samesite="lax",
-    )
+    response = RedirectResponse(url=f"{FRONTEND_URL}/home")
+    _set_auth_cookies(response, tokens)
     return response
 
 
-@router.post("/refresh", response_model=TokenResponse)
-def auth_refresh(refresh_data: RefreshTokenRequest, db: Session = Depends(get_db)):
+@router.post("/refresh", response_model=UserResponse)
+def auth_refresh(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     try:
-        payload = verify_token(refresh_data.refresh_token)
+        refresh_token = request.cookies.get("refresh_token")
+        if not refresh_token:
+            raise HTTPException(status_code=401, detail="Refresh cookie missing")
+        payload = verify_token(refresh_token)
         if payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid token type")
 
         user = get_user(payload.get("sub"), db)
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
-        return TokenResponse(
-            **create_token_pair(user["email"], user.get("name"), user.get("surname"))
+        _set_auth_cookies(
+            response,
+            create_token_pair(user["email"], user.get("name"), user.get("surname")),
         )
+        return UserResponse(**user)
     except HTTPException:
         raise
     except Exception as exc:
@@ -157,8 +183,7 @@ def auth_refresh(refresh_data: RefreshTokenRequest, db: Session = Depends(get_db
 @router.post("/logout")
 def auth_logout():
     response = JSONResponse({"detail": "Logged out"})
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
+    _clear_auth_cookies(response)
     return response
 
 
@@ -198,7 +223,26 @@ def change_password_endpoint(
         password_data.new_password,
         db,
     )
-    return MessageResponse(**result)
+    response = JSONResponse(result)
+    _clear_auth_cookies(response)
+    return response
+
+
+@router.post("/change-email", response_model=MessageResponse)
+def change_email_endpoint(
+    email_data: ChangeEmailRequest,
+    current_user: Annotated[Dict, Depends(get_verified_user)],
+    db: Session = Depends(get_db),
+):
+    result = change_email(
+        current_user["email"],
+        email_data.new_email,
+        email_data.password,
+        db,
+    )
+    response = JSONResponse(result)
+    _clear_auth_cookies(response)
+    return response
 
 
 @router.post("/password-reset/request", response_model=MessageResponse)

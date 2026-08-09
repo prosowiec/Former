@@ -2,7 +2,7 @@
 
 from typing import Annotated, Dict
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -17,9 +17,11 @@ security = HTTPBearer(auto_error=False)
 
 def _resolve_user(
     credentials: HTTPAuthorizationCredentials | None,
+    request: Request,
     db: Session,
 ) -> Dict:
-    if not credentials:
+    token = credentials.credentials if credentials else request.cookies.get("access_token")
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
@@ -27,7 +29,7 @@ def _resolve_user(
         )
 
     try:
-        payload = verify_token(credentials.credentials)
+        payload = verify_token(token)
         if payload.get("type") == "refresh":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -62,19 +64,21 @@ def _resolve_user(
 
 
 async def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
     db: Session = Depends(get_db),
 ) -> Dict:
     """Return the user represented by a valid access token."""
-    return _resolve_user(credentials, db)
+    return _resolve_user(credentials, request, db)
 
 
 def get_verified_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
     db: Session = Depends(get_db),
 ) -> Dict:
     """Return the current user only when their email has been verified."""
-    user = _resolve_user(credentials, db)
+    user = _resolve_user(credentials, request, db)
     db_user = db.query(User).filter(User.email == user["email"]).first()
     if not db_user or not db_user.email_verified:
         raise HTTPException(

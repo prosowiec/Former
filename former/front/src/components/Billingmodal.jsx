@@ -63,7 +63,6 @@ function CheckoutForm({ amountEur, fills, onSuccess, onCancel }) {
 
       await api.confirmPayment({
         payment_intent_id: paymentIntent.id,
-        stripe_transaction_id: paymentIntent.id,
       });
 
       onSuccess(fills);
@@ -130,7 +129,6 @@ export default function BillingModal({ onClose }) {
     setSelected({ eur, fills });
     try {
       const res = await api.createPaymentIntent({
-        amount_eur: eur,
         form_fills_purchased: fills,
       });
       setClientSecret(res.client_secret);
