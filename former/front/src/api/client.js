@@ -88,6 +88,9 @@ export const api = {
   changePassword: (current_password, new_password) =>
     request("/auth/change-password", { method: "POST", body: JSON.stringify({ old_password: current_password, new_password }) }),
 
+  changeEmail: (new_email, password) =>
+    request("/auth/change-email", { method: "POST", body: JSON.stringify({ new_email, password }) }),
+
   // ── Billing ────────────────────────────────────────────
   getBillingInfo: () => request("/billing/info"),
 

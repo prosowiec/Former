@@ -34,12 +34,12 @@ export function formatBrowserDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unavailable";
 
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-GB", {
     year: "numeric",
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    timeZoneName: "short",
+    hour12: false,
   });
 }

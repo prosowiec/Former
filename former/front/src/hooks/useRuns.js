@@ -7,6 +7,7 @@ export function useRuns() {
   const [loading, setLoading] = useState(true);
 
   const fetchRuns = useCallback(async () => {
+    setLoading(true);
     try {
       const data = await api.getRuns();
       setRuns(data);

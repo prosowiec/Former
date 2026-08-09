@@ -1,8 +1,14 @@
 import { useState } from "react";
 import { api } from "../api/client";
-import { formatExpectedFillEnd } from "../hooks/runsUtils";
+import { formatBrowserDateTime, formatExpectedFillEnd } from "../hooks/runsUtils";
 
 const DEFAULT_DAG_ID = import.meta.env.VITE_DEFAULT_DAG_ID ?? "form_filler_plan";
+
+const PACE_OPTIONS = {
+  slow: { label: "Slow", intervalMinutes: 60, description: "1/hour" },
+  intermediate: { label: "Intermediate", intervalMinutes: 10, description: "6/hour" },
+  fast: { label: "Fast", intervalMinutes: 5, description: "12/hour" },
+};
 
 const AXES = [
   {
@@ -125,8 +131,7 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
   const [runName, setRunName]             = useState("");
   const [formUrl, setFormUrl]             = useState("");
   const [numExecutions, setNumExecutions] = useState(1);
-  const [fillRate, setFillRate]           = useState(6);
-  const [ratePeriod, setRatePeriod]       = useState("hour");
+  const [pace, setPace]                   = useState("intermediate");
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState(null);
   const [axisValues, setAxisValues]       = useState(AXES.map(() => 2));
@@ -135,10 +140,10 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
   const after   = fillsRemaining !== null ? fillsRemaining - numExecutions : null;
   const isLow   = after !== null && after < 10 && after >= 0;
   const isEmpty = after !== null && after < 0;
-  const periodMinutes = ratePeriod === "day" ? 24 * 60 : 60;
-  const maxFillRate = 12;
-  const baseInterval = periodMinutes / Math.max(1, fillRate);
-  const expectedFillEnd = formatExpectedFillEnd(Date.now(), numExecutions, baseInterval);
+  const baseInterval = PACE_OPTIONS[pace].intervalMinutes;
+  const scheduleStart = Date.now();
+  const expectedFillStart = formatBrowserDateTime(scheduleStart);
+  const expectedFillEnd = formatExpectedFillEnd(scheduleStart, numExecutions, baseInterval);
 
   function setAxis(axisIdx, stepIdx) {
     setAxisValues((prev) => prev.map((v, i) => (i === axisIdx ? stepIdx : v)));
@@ -216,41 +221,26 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
             type="number"
             min={1}
             value={numExecutions}
-            onChange={(e) => setNumExecutions(Number(e.target.value))}
+            onChange={(e) => setNumExecutions(Math.max(1, Number(e.target.value) || 1))}
             className="input--narrow"
           />
         </div>
 
-        <div className="field field--rate">
-          <label htmlFor="fill_rate">
-            Fill pace <span className="field-limit">max 12/hour</span>
-          </label>
-          <div className="rate-input-group">
-            <input
-              id="fill_rate"
-              type="number"
-              min={1}
-              max={maxFillRate}
-              step={1}
-              value={fillRate}
-              onChange={(e) => {
-                const value = Number(e.target.value) || 1;
-                setFillRate(Math.min(maxFillRate, Math.max(1, value)));
-              }}
-              aria-label="Forms filled"
-            />
-            <select
-              value={ratePeriod}
-              onChange={(e) => {
-                const nextPeriod = e.target.value;
-                setRatePeriod(nextPeriod);
-                setFillRate((current) => Math.min(current, 12));
-              }}
-              aria-label="Fill pace period"
-            >
-              <option value="hour">per hour</option>
-              <option value="day">per day</option>
-            </select>
+        <div className="field field--pace">
+          <span className="field__label" id="pace-label">Pace</span>
+          <div className="pace-options" role="group" aria-labelledby="pace-label">
+            {Object.entries(PACE_OPTIONS).map(([value, option]) => (
+              <button
+                key={value}
+                type="button"
+                className={`pace-option${pace === value ? " pace-option--active" : ""}`}
+                onClick={() => setPace(value)}
+                aria-pressed={pace === value}
+                title={option.description}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -268,11 +258,18 @@ export default function TriggerForm({ onSuccess, fillsRemaining, onTopUp }) {
         </div>
       </div>
 
-      {/* Expected completion in the browser's local timezone */}
-      <div className="expected-fill-end" aria-live="polite">
-        <span className="expected-fill-end__label">Expected fill end</span>
-        <strong>{expectedFillEnd}</strong>
-        <span className="expected-fill-end__hint">browser local time</span>
+      {/* Planned schedule in the browser's local timezone */}
+      <div className="schedule-preview" aria-live="polite">
+        <div className="schedule-preview__item">
+          <span className="schedule-preview__label">Starts</span>
+          <strong>{expectedFillStart}</strong>
+        </div>
+        <span className="schedule-preview__arrow" aria-hidden="true">→</span>
+        <div className="schedule-preview__item">
+          <span className="schedule-preview__label">Planned end</span>
+          <strong>{expectedFillEnd}</strong>
+        </div>
+        <span className="schedule-preview__hint">browser local time</span>
       </div>
 
       {/* Fills preview — always shown when billing is available */}

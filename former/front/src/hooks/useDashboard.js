@@ -10,7 +10,7 @@ const TABS = [
 ];
 
 export function useDashboard() {
-  const { runs, loading: runsLoading, addRun, updateRun, stats } = useRuns();
+  const { runs, loading: runsLoading, addRun, updateRun, stats, refetch: refreshRuns } = useRuns();
   const [successBanner, setSuccessBanner] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
 
@@ -46,6 +46,7 @@ export function useDashboard() {
   return {
     filteredRuns,
     runsLoading,
+    refreshRuns,
     stats,
     TABS,
     activeTab,

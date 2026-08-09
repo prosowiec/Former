@@ -19,6 +19,7 @@ from ..dependencies import get_current_user, get_verified_user
 from ..schemas import (
     AuthLoginRequest,
     AuthRegisterRequest,
+    ChangeEmailRequest,
     ChangePasswordRequest,
     EmailVerificationResponse,
     MessageResponse,
@@ -30,6 +31,7 @@ from ..schemas import (
 )
 from ..users import (
     authenticate_user,
+    change_email,
     change_password,
     create_user,
     get_or_create_oauth_user,
@@ -221,7 +223,26 @@ def change_password_endpoint(
         password_data.new_password,
         db,
     )
-    return MessageResponse(**result)
+    response = JSONResponse(result)
+    _clear_auth_cookies(response)
+    return response
+
+
+@router.post("/change-email", response_model=MessageResponse)
+def change_email_endpoint(
+    email_data: ChangeEmailRequest,
+    current_user: Annotated[Dict, Depends(get_verified_user)],
+    db: Session = Depends(get_db),
+):
+    result = change_email(
+        current_user["email"],
+        email_data.new_email,
+        email_data.password,
+        db,
+    )
+    response = JSONResponse(result)
+    _clear_auth_cookies(response)
+    return response
 
 
 @router.post("/password-reset/request", response_model=MessageResponse)

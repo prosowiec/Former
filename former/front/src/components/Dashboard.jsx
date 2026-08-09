@@ -7,16 +7,16 @@ import { api } from "../api/client";
 import TriggerForm from "./TriggerForm";
 import RunsTable from "./RunsTable";
 import Billingmodal from "./Billingmodal";
-import Changepasswordmodal from "./Changepasswordmodal";
+import ProfileModal from "./ProfileModal";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [billingOpen, setBillingOpen] = useState(false);
-  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState(null); // "success" | "error" | null
   const {
-    filteredRuns, runsLoading, stats,
+    filteredRuns, runsLoading, refreshRuns, stats,
     TABS, activeTab, setActiveTab,
     handleTriggerSuccess, handleRunCancelled, successBanner,
   } = useDashboard();
@@ -53,6 +53,11 @@ export default function Dashboard() {
     navigate("/landing");
   }
 
+  async function handleSessionEnded() {
+    await logout();
+    navigate("/login");
+  }
+
   return (
     <div className="app">
       <header className="header">
@@ -70,8 +75,8 @@ export default function Dashboard() {
               />
             )}
             <span className="user-name">{user?.name ?? user?.email}</span>
-            <button className="logout-btn" onClick={() => setChangePasswordOpen(true)}>
-              Change password
+            <button className="logout-btn" onClick={() => setProfileOpen(true)}>
+              Profile
             </button>
             <button className="logout-btn" onClick={handleLogout}>
               Sign out
@@ -171,6 +176,19 @@ export default function Dashboard() {
                   </button>
                 ))}
               </div>
+
+              <div className="card__divider" />
+
+              <button
+                type="button"
+                className="runs-refresh-btn"
+                onClick={refreshRuns}
+                disabled={runsLoading}
+                aria-label={runsLoading ? "Refreshing runs" : "Refresh runs"}
+              >
+                <RefreshIcon spinning={runsLoading} />
+                {runsLoading ? "Refreshing" : "Refresh"}
+              </button>
             </div>
           </div>
 
@@ -211,7 +229,35 @@ export default function Dashboard() {
       </main>
 
       {billingOpen && <Billingmodal onClose={() => { setBillingOpen(false); refetchBilling(); }} />}
-      {changePasswordOpen && <Changepasswordmodal onClose={() => setChangePasswordOpen(false)} />}
+      {profileOpen && (
+        <ProfileModal
+          user={user}
+          onClose={() => setProfileOpen(false)}
+          onTopUp={() => { setProfileOpen(false); setBillingOpen(true); }}
+          onSessionEnded={handleSessionEnded}
+        />
+      )}
     </div>
+  );
+}
+
+function RefreshIcon({ spinning = false }) {
+  return (
+    <svg
+      className={spinning ? "runs-refresh-icon runs-refresh-icon--spinning" : "runs-refresh-icon"}
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

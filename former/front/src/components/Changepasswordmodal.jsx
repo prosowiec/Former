@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { api } from "../api/client";
 
-export default function ChangePasswordModal({ onClose }) {
+export default function ChangePasswordModal({ email, onClose, onSuccess }) {
   const [current,  setCurrent]  = useState("");
   const [next,     setNext]     = useState("");
   const [next2,    setNext2]    = useState("");
   const [loading,  setLoading]  = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [error,    setError]    = useState(null);
   const [done,     setDone]     = useState(false);
 
@@ -25,6 +27,19 @@ export default function ChangePasswordModal({ onClose }) {
     }
   }
 
+  async function handleForgotPassword() {
+    setError(null);
+    setResetLoading(true);
+    try {
+      await api.requestPasswordReset(email);
+      setResetSent(true);
+    } catch (err) {
+      setError(err.message ?? "Failed to send the reset link.");
+    } finally {
+      setResetLoading(false);
+    }
+  }
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
@@ -40,7 +55,7 @@ export default function ChangePasswordModal({ onClose }) {
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "16px 0", textAlign: "center" }}>
               <span style={{ fontSize: 36 }}>✓</span>
               <p style={{ fontSize: 13, color: "var(--muted)" }}>Password changed successfully.</p>
-              <button className="submit-btn submit-btn--full" onClick={onClose}>Done</button>
+              <button className="submit-btn submit-btn--full" onClick={onSuccess ?? onClose}>Continue to sign in</button>
             </div>
           ) : (
             <form className="login-form" onSubmit={handleSubmit} noValidate>
@@ -56,6 +71,17 @@ export default function ChangePasswordModal({ onClose }) {
                   autoFocus
                   autoComplete="current-password"
                 />
+                <div className="profile-forgot-password">
+                  <span>Forgot your password?</span>
+                  <button
+                    type="button"
+                    className="advanced-toggle"
+                    onClick={handleForgotPassword}
+                    disabled={resetLoading || resetSent || !email}
+                  >
+                    {resetLoading ? "Sending..." : resetSent ? "Reset link sent" : "Send reset link"}
+                  </button>
+                </div>
               </div>
               <div className="field">
                 <label htmlFor="cp-new">New password</label>
@@ -86,6 +112,13 @@ export default function ChangePasswordModal({ onClose }) {
                 <div className="banner banner--error">
                   <span className="banner__label">Error</span>
                   <span>{error}</span>
+                </div>
+              )}
+
+              {resetSent && (
+                <div className="banner banner--success">
+                  <span className="banner__label">Sent</span>
+                  <span>Check {email} for the reset link.</span>
                 </div>
               )}
 

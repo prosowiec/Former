@@ -136,6 +136,20 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=256)
 
 
+class ChangeEmailRequest(BaseModel):
+    new_email: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=8, max_length=256)
+
+    @field_validator("new_email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        local, separator, domain = normalized.partition("@")
+        if not separator or not local or "." not in domain or domain.startswith(".") or domain.endswith("."):
+            raise ValueError("Enter a valid email address")
+        return normalized
+
+
 class PasswordResetRequest(BaseModel):
     email: str
 
